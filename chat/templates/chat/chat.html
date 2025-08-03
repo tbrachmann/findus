@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>findus Chat</title>
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #f5f5f5;
+            --accent-color: #6c8cc7;
+            --text-color: #333;
+            --light-text: #666;
+            --border-radius: 16px;
+            --user-msg-color: #e3f2fd;
+            --ai-msg-color: #f0f0f0;
+            --grammar-color: #f7f7f7;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+                Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+
+        body {
+            background-color: #fafafa;
+            color: var(--text-color);
+            line-height: 1.6;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 800px;
+            height: 90vh;
+            background-color: white;
+            border-radius: var(--border-radius);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 15px 20px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .new-conversation-btn {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 20px;
+            padding: 6px 15px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .new-conversation-btn:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .new-conversation-btn:active {
+            transform: scale(0.97);
+        }
+
+        .messages-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column; /* Messages stack from top to bottom */
+            gap: 15px;
+        }
+
+        /* Message row contains both message bubble and grammar bubble */
+        .message-row {
+            display: flex;
+            width: 100%;
+            margin-bottom: 2px;
+            position: relative;
+        }
+
+        /* User message rows are aligned to the right */
+        .user-row {
+            justify-content: flex-end;
+        }
+
+        /* AI message rows are aligned to the left */
+        .ai-row {
+            justify-content: flex-start;
+        }
+
+        /* Main message bubble styling */
+        .message-bubble {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            position: relative;
+            word-break: break-word;
+        }
+
+        .user-bubble {
+            background-color: var(--user-msg-color);
+            border-bottom-right-radius: 4px;
+            color: #1565c0;
+            order: 2; /* User bubble appears on the right */
+        }
+
+        .ai-bubble {
+            background-color: var(--ai-msg-color);
+            border-bottom-left-radius: 4px;
+            color: #424242;
+        }
+
+        /* Grammar analysis bubble styling */
+        .grammar-bubble {
+            max-width: 40%;
+            background-color: var(--grammar-color);
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.75rem;
+            color: var(--light-text);
+            margin-right: 10px;
+            align-self: flex-start;
+            order: 1; /* Grammar bubble appears on the left of user message */
+            opacity: 0.9;
+        }
+
+        .message-time {
+            font-size: 0.7rem;
+            color: var(--light-text);
+            margin-top: 5px;
+            text-align: right;
+        }
+
+        .input-area {
+            padding: 15px;
+            background-color: white;
+            border-top: 1px solid #eee;
+            display: flex;
+            gap: 10px;
+        }
+
+        #message-form {
+            display: flex;
+            width: 100%;
+        }
+
+        #user-input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 24px;
+            outline: none;
+            font-size: 1rem;
+            transition: border 0.3s;
+        }
+
+        #user-input:focus {
+            border-color: var(--accent-color);
+        }
+
+        #send-button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 24px;
+            padding: 0 20px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+
+        #send-button:hover {
+            background-color: var(--accent-color);
+        }
+
+        .typing-indicator {
+            display: none;
+            align-self: flex-start;
+            background-color: #f0f0f0;
+            padding: 8px 16px;
+            border-radius: 12px;
+            margin-top: 5px;
+            color: var(--light-text);
+            font-style: italic;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            .chat-container {
+                height: 95vh;
+                border-radius: 0;
+            }
+
+            .message-bubble {
+                max-width: 80%;
+            }
+
+            .grammar-bubble {
+                max-width: 60%;
+                font-size: 0.7rem;
+                margin-right: 5px;
+            }
+
+            .chat-header {
+                padding: 12px 15px;
+                font-size: 1rem;
+            }
+
+            .new-conversation-btn {
+                padding: 4px 10px;
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="header-title">findus Chat with Gemini</div>
+            <a href="{% url 'new_conversation' %}" class="new-conversation-btn">+ New Conversation</a>
+        </div>
+
+        <div class="messages-container" id="messages">
+            {% if messages %}
+                {% for message in messages %}
+                    <!-- User Message Row -->
+                    <div class="message-row user-row" data-message-id="{{ message.id }}">
+                        {% if message.grammar_analysis %}
+                            <div class="grammar-bubble">
+                                {{ message.grammar_analysis|linebreaksbr }}
+                            </div>
+                        {% endif %}
+                        <div class="message-bubble user-bubble">
+                            {{ message.message }}
+                            <div class="message-time">{{ message.created_at|date:"g:i A" }}</div>
+                        </div>
+                    </div>
+
+                    <!-- AI Message Row -->
+                    <div class="message-row ai-row">
+                        <div class="message-bubble ai-bubble">
+                            {{ message.response|linebreaksbr }}
+                            <div class="message-time">{{ message.created_at|date:"g:i A" }}</div>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <!-- Default welcome message -->
+                <div class="message-row ai-row">
+                    <div class="message-bubble ai-bubble">
+                        Hello! I'm Gemini. How can I help you today?
+                        <div class="message-time">Just now</div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="typing-indicator" id="typing-indicator">
+            Gemini is thinking...
+        </div>
+
+        <div class="input-area">
+            <form id="message-form">
+                {% csrf_token %}
+                <input type="hidden" name="conversation_id" id="conversation-id" value="{{ conversation.id }}">
+                <input type="text" id="user-input" placeholder="Type your message..." autocomplete="off" autofocus>
+                <button type="submit" id="send-button">Send</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const messageForm = document.getElementById('message-form');
+            const userInput = document.getElementById('user-input');
+            const messagesContainer = document.getElementById('messages');
+            const typingIndicator = document.getElementById('typing-indicator');
+            const conversationId = document.getElementById('conversation-id').value;
+
+            // Scroll to bottom of messages on load
+            scrollToBottom();
+
+            // Store the latest message ID for polling
+            let latestMessageId = null;
+
+            messageForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                const message = userInput.value.trim();
+                if (!message) return;
+
+                // Add user message to UI
+                addUserMessage(message);
+
+                // Clear input
+                userInput.value = '';
+
+                // Show typing indicator
+                typingIndicator.style.display = 'block';
+
+                // Get CSRF token from form
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+                // Send message to server
+                const formData = new FormData();
+                formData.append('message', message);
+                formData.append('conversation_id', conversationId);
+
+                fetch('/send/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Hide typing indicator
+                    typingIndicator.style.display = 'none';
+
+                    if (data.error) {
+                        // Handle error
+                        addErrorMessage(data.error);
+                    } else {
+                        // Add AI response to UI
+                        addAIResponse(data.response, data.message_id);
+
+                        // Store the message ID for grammar analysis polling
+                        latestMessageId = data.message_id;
+
+                        // Start polling for grammar analysis
+                        if (latestMessageId) {
+                            pollForGrammarAnalysis(latestMessageId);
+                        }
+                    }
+                })
+                .catch(error => {
+                    // Hide typing indicator
+                    typingIndicator.style.display = 'none';
+
+                    // Show error message
+                    addErrorMessage('Failed to send message. Please try again.');
+                    console.error('Error:', error);
+                });
+            });
+
+            function addUserMessage(text) {
+                const messageRow = document.createElement('div');
+                messageRow.className = 'message-row user-row';
+
+                const messageBubble = document.createElement('div');
+                messageBubble.className = 'message-bubble user-bubble';
+
+                // Replace line breaks with <br> tags
+                const formattedText = text.replace(/\n/g, '<br>');
+                messageBubble.innerHTML = formattedText;
+
+                const timeDiv = document.createElement('div');
+                timeDiv.className = 'message-time';
+                timeDiv.textContent = 'Just now';
+
+                messageBubble.appendChild(timeDiv);
+                messageRow.appendChild(messageBubble);
+                messagesContainer.appendChild(messageRow);
+
+                scrollToBottom();
+            }
+
+            function addAIResponse(text, messageId) {
+                const messageRow = document.createElement('div');
+                messageRow.className = 'message-row ai-row';
+
+                const messageBubble = document.createElement('div');
+                messageBubble.className = 'message-bubble ai-bubble';
+
+                // Replace line breaks with <br> tags
+                const formattedText = text.replace(/\n/g, '<br>');
+                messageBubble.innerHTML = formattedText;
+
+                const timeDiv = document.createElement('div');
+                timeDiv.className = 'message-time';
+                timeDiv.textContent = 'Just now';
+
+                messageBubble.appendChild(timeDiv);
+                messageRow.appendChild(messageBubble);
+                messagesContainer.appendChild(messageRow);
+
+                // Set the message ID on the user message row for later grammar analysis updates
+                const userRows = document.querySelectorAll('.user-row');
+                if (userRows.length > 0) {
+                    const lastUserRow = userRows[userRows.length - 1];
+                    lastUserRow.setAttribute('data-message-id', messageId);
+                }
+
+                scrollToBottom();
+            }
+
+            function addGrammarAnalysis(messageId, analysisText) {
+                // Find the user message row with this ID
+                const messageRow = document.querySelector(`.user-row[data-message-id="${messageId}"]`);
+                if (!messageRow) return;
+
+                // Check if grammar bubble already exists
+                let grammarBubble = messageRow.querySelector('.grammar-bubble');
+
+                if (!grammarBubble) {
+                    // Create new grammar bubble
+                    grammarBubble = document.createElement('div');
+                    grammarBubble.className = 'grammar-bubble';
+
+                    // Insert at the beginning of the row
+                    messageRow.insertBefore(grammarBubble, messageRow.firstChild);
+                }
+
+                // Update the content
+                grammarBubble.innerHTML = analysisText.replace(/\n/g, '<br>');
+            }
+
+            function addErrorMessage(text) {
+                const messageRow = document.createElement('div');
+                messageRow.className = 'message-row ai-row';
+
+                const messageBubble = document.createElement('div');
+                messageBubble.className = 'message-bubble ai-bubble';
+                messageBubble.style.backgroundColor = '#ffebee';
+                messageBubble.style.color = '#c62828';
+                messageBubble.textContent = 'Error: ' + text;
+
+                messageRow.appendChild(messageBubble);
+                messagesContainer.appendChild(messageRow);
+
+                scrollToBottom();
+            }
+
+            function scrollToBottom() {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            function pollForGrammarAnalysis(messageId) {
+                // Poll for grammar analysis updates every 1 second for 10 seconds max
+                let attempts = 0;
+                const maxAttempts = 10;
+
+                const checkGrammarAnalysis = function() {
+                    if (attempts >= maxAttempts) return;
+
+                    fetch(`/check-grammar/${messageId}/`, {
+                        method: 'GET',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.grammar_analysis) {
+                            // Grammar analysis is available, update the UI
+                            addGrammarAnalysis(messageId, data.grammar_analysis);
+                        } else {
+                            // Try again after delay
+                            attempts++;
+                            setTimeout(checkGrammarAnalysis, 1000);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error polling for grammar analysis:', error);
+                        attempts = maxAttempts; // Stop polling on error
+                    });
+                };
+
+                // Start polling
+                setTimeout(checkGrammarAnalysis, 1000);
+            }
+        });
+    </script>
+</body>
+</html>
