@@ -1,5 +1,5 @@
 """
-chat/urls.py
+chat.urls module.
 
 URL configuration for the chat application.
 """

@@ -1,7 +1,7 @@
-"""
-chat/models.py
+"""Database models for the Chat application.
 
-Database models for the Chat application.
+Contains the Conversation and ChatMessage ORM models used by the *findus*
+project.
 """
 
 # ---------------------------------------------------------------------------
@@ -10,9 +10,7 @@ from django.db import models
 
 
 class Conversation(models.Model):
-    """
-    Represents a single chat thread that groups many ChatMessage rows.
-    """
+    """Represents a single chat thread that groups many ChatMessage rows."""
 
     title = models.CharField(
         max_length=255,
@@ -23,11 +21,14 @@ class Conversation(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        """Django model metadata."""
+
         ordering = ["-updated_at"]
         verbose_name = "Conversation"
         verbose_name_plural = "Conversations"
 
-    def __str__(self) -> str:  # noqa: D401
+    def __str__(self) -> str:
+        """Return a human-readable representation for admin & debugging."""
         friendly_date: str = self.created_at.strftime("%Y-%m-%d %H:%M")
         # Explicit str(...) casts silence static-type checkers complaining
         # about the Django model fields being `Any`.
@@ -36,10 +37,12 @@ class Conversation(models.Model):
 
 class ChatMessage(models.Model):
     """
-    Stores a single chat interaction consisting of:
-      • message  – the raw user prompt
-      • response – Gemini’s answer
-      • created_at – timestamp when interaction was stored
+    Stores a single chat interaction.
+
+    Details:
+      • ``message``  – the raw user prompt
+      • ``response`` – Gemini’s answer
+      • ``created_at`` – timestamp when interaction was stored
     """
 
     conversation = models.ForeignKey(
@@ -59,12 +62,15 @@ class ChatMessage(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        """Django model metadata."""
+
         # Group by conversation, then chronological order within each.
         ordering = ["conversation_id", "created_at"]
         verbose_name = "Chat Message"
         verbose_name_plural = "Chat Messages"
 
     # Display first 50 characters of the user message for admin/list view
-    def __str__(self) -> str:  # noqa: D401  (simple-return)
+    def __str__(self) -> str:
+        """Return a truncated preview of the user prompt."""
         msg: str = str(self.message)
         return msg[:50] + ("…" if len(msg) > 50 else "")

@@ -1,5 +1,5 @@
 """
-chat/views.py
+chat/views.py.
 
 Views for the chat application that integrates with Gemini API.
 """
@@ -23,7 +23,7 @@ from .models import ChatMessage, Conversation
 
 def analyze_grammar_async(message_id: int, user_message: str) -> None:
     """
-    Run in a background thread:
+    Run in a background thread.
 
     1. Ask Gemini to analyse ``user_message`` for grammar / spelling issues.
     2. Persist the feedback to ``ChatMessage.grammar_analysis``.
@@ -83,9 +83,7 @@ def chat_view(request: HttpRequest, conversation_id: int | None = None) -> HttpR
 
 
 def new_conversation(request: HttpRequest) -> HttpResponse:
-    """
-    Create a new Conversation and redirect to its chat view.
-    """
+    """Create a new conversation and redirect to its chat view."""
     convo = Conversation.objects.create()
     return redirect(reverse("chat", args=[convo.id]))
 

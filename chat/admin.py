@@ -1,5 +1,5 @@
 """
-chat/admin.py
+chat.admin module.
 
 Django-admin registrations for the *findus* chat application.
 """
@@ -36,9 +36,8 @@ class ChatMessageAdmin(admin.ModelAdmin):
     ordering = ("-created_at",)
 
     @staticmethod
-    def short_message(obj: "ChatMessage") -> str:  # noqa: D401
+    def short_message(obj: "ChatMessage") -> str:
         """Return a truncated preview of the user message."""
-
         # Explicit `str()` cast ensures a concrete ``str`` return type for MyPy.
         msg: str = str(obj.message)
         return msg[:60] + ("…" if len(msg) > 60 else "")
