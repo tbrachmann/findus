@@ -130,3 +130,5 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Gemini API
 GEMINI_API_KEY = 'AIzaSyBPnGE-TZLfhBDpZRRtr03TR91sZriQTxg'
+
+SHELL_PLUS = "ipython"
