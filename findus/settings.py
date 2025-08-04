@@ -12,6 +12,12 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 from typing import List
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from a `.env` file located in the project root.
+# This must be done **before** we reference any env vars (e.g. GEMINI_API_KEY).
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -128,7 +134,23 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Gemini API
-GEMINI_API_KEY = 'AIzaSyBPnGE-TZLfhBDpZRRtr03TR91sZriQTxg'
+# --------------------------------------------------------------------------- #
+# Google Gemini API                                                           #
+# --------------------------------------------------------------------------- #
+
+# Fetch the API key from the environment.  Expect developers to create a
+# local ``.env`` file (ignored via .gitignore) with::
+#     GEMINI_API_KEY=your_api_key_here
+#
+# This avoids accidentally leaking credentials in source control.
+
+GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY")
+
+if not GEMINI_API_KEY:
+    raise RuntimeError(
+        "GEMINI_API_KEY not set.\n"
+        "Create a `.env` file in the project root with a line like:\n"
+        "GEMINI_API_KEY=your_api_key_here"
+    )
 
 SHELL_PLUS = "ipython"

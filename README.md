@@ -38,15 +38,24 @@ pip install -r requirements.txt
 
 ---
 
-## 🔐 Configuration
+## Environment Configuration
 
-The app needs a Gemini API key:
+Sensitive settings such as API keys are **not** hard-coded in the
+repository. Instead they are loaded from an environment file at runtime.
 
-```bash
-export GEMINI_API_KEY="AIzaSyBPnGE-TZLfhBDpZRRtr03TR91sZriQTxg"
-```
+1. Copy the provided template and edit it locally
+   ```bash
+   cp .env.example .env
+   ```
+2. Obtain your **Google Gemini** API key from
+   https://ai.google.dev/
+3. Open the new `.env` file and replace the placeholder:
+   ```text
+   GEMINI_API_KEY=your_real_api_key_here
+   ```
 
-Alternatively set it in `findus/settings.py` or an `.env` file (remember to keep secrets out of git).
+The `.env` file is listed in `.gitignore`, so your credentials will **never**
+be committed to version control.
 
 ---
 
