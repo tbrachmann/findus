@@ -9,6 +9,7 @@ charset-normalizer==3.4.2
 click==8.2.1
 distlib==0.4.0
 Django==5.2.4
+django-extensions==4.1
 django-stubs==5.2.2
 django-stubs-ext==5.2.2
 filelock==3.18.0
