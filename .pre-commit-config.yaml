@@ -27,8 +27,8 @@ repos:
         additional_dependencies: [flake8-docstrings]
         args: [
             '--max-line-length=100',
-            # Exclude auto-generated and top-level helper files
-            '--exclude=.git,__pycache__,build,dist,venv,migrations,tests.py,manage.py,__init__.py'
+            # Exclude auto-generated, migrations, and top-level helper files
+            '--exclude=.git,__pycache__,build,dist,venv,migrations,*/migrations/*,tests.py,manage.py,__init__.py'
         ]
 
 -   repo: https://github.com/pre-commit/mirrors-mypy

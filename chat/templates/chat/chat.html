@@ -83,6 +83,30 @@
             transform: scale(0.97);
         }
 
+        /* End Conversation button (muted tone) */
+        .end-conversation-btn {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #f0f0f0;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 20px;
+            padding: 6px 15px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            margin-right: 10px; /* gap between buttons */
+        }
+
+        .end-conversation-btn:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .end-conversation-btn:active {
+            transform: scale(0.97);
+        }
+
         .messages-container {
             flex: 1;
             padding: 20px;
@@ -233,6 +257,12 @@
                 padding: 4px 10px;
                 font-size: 0.8rem;
             }
+
+            .end-conversation-btn {
+                padding: 4px 10px;
+                font-size: 0.8rem;
+                margin-right: 6px;
+            }
         }
     </style>
 </head>
@@ -240,7 +270,13 @@
     <div class="chat-container">
         <div class="chat-header">
             <div class="header-title">findus Chat with Gemini</div>
-            <a href="{% url 'new_conversation' %}" class="new-conversation-btn">+ New Conversation</a>
+            <div>
+                <!-- End Conversation button leads to after-action report -->
+                <a href="{% url 'conversation_analysis' conversation.id %}"
+                   class="end-conversation-btn">End Conversation</a>
+                <!-- Existing New Conversation button -->
+                <a href="{% url 'new_conversation' %}" class="new-conversation-btn">+ New Conversation</a>
+            </div>
         </div>
 
         <div class="messages-container" id="messages">

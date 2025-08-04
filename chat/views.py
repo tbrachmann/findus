@@ -4,6 +4,7 @@ chat/views.py.
 Views for the chat application that integrates with Gemini API.
 """
 
+from typing import Optional
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
 from django.http import HttpRequest, HttpResponse
@@ -14,7 +15,7 @@ import google.genai as genai
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import ChatMessage, Conversation
+from .models import ChatMessage, Conversation, AfterActionReport
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -189,4 +190,110 @@ def check_grammar_status(request: HttpRequest, message_id: int) -> JsonResponse:
         {
             "grammar_analysis": message.grammar_analysis or "",
         }
+    )
+
+
+# --------------------------------------------------------------------------- #
+# After-action report                                                         #
+# --------------------------------------------------------------------------- #
+
+
+def conversation_analysis(
+    request: HttpRequest,
+    conversation_id: int,
+) -> HttpResponse:
+    """
+    Display an *after-action* report for a finished conversation.
+
+    The function fetches every :class:`chat.models.ChatMessage` belonging to
+    the conversation, pairs each user prompt with its grammar feedback, and
+    asks Gemini for a holistic assessment:
+
+    1. Recurring grammar / spelling issues
+    2. Notable strengths
+    3. 3-5 concrete recommendations or exercises to improve
+
+    The generated analysis is rendered via *chat/analysis.html*.
+    """
+    # ------------------------------------------------------------------ #
+    # 1. Fetch conversation & ensure it has messages                     #
+    # ------------------------------------------------------------------ #
+    conversation: Conversation = get_object_or_404(Conversation, pk=conversation_id)
+    messages_qs = conversation.messages.all()  # ordering in model.Meta
+
+    # Redirect to chat view when there is nothing to analyse yet.
+    if not messages_qs.exists():
+        return redirect(reverse("chat", args=[conversation.id]))
+
+    # ------------------------------------------------------------------ #
+    # 1b. If we've already generated a report, re-use it                 #
+    # ------------------------------------------------------------------ #
+    existing_report: Optional[AfterActionReport] = conversation.reports.first()
+
+    if existing_report:
+        return render(
+            request,
+            "chat/analysis.html",
+            {
+                "conversation": conversation,
+                "analysis": existing_report.analysis_content,
+                "report": existing_report,
+            },
+        )
+
+    # ------------------------------------------------------------------ #
+    # 2. Build prompt for Gemini                                         #
+    # ------------------------------------------------------------------ #
+    prompt_parts: list[str] = [
+        "You are an experienced English teacher creating a short "
+        "after-action report for your student.\n",
+        "Below is the full conversation in pairs of user text followed by "
+        "the grammar feedback they already received.\n\n",
+    ]
+
+    for msg in messages_qs:
+        feedback = msg.grammar_analysis or "No feedback available."
+        prompt_parts.append(f"User: {msg.message}\nFeedback: {feedback}\n---\n")
+
+    prompt_parts.append(
+        "\nBased on the entire dialogue:\n"
+        "• Identify recurring grammar / spelling issues.\n"
+        "• Highlight their strengths.\n"
+        "• Provide 3-5 concrete exercises or recommendations to improve.\n"
+        "Respond in concise bullet-points."
+    )
+    prompt: str = "".join(prompt_parts)
+
+    # ------------------------------------------------------------------ #
+    # 3. Call Gemini                                                     #
+    # ------------------------------------------------------------------ #
+    try:
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        gemini_resp = client.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=prompt,
+        )
+        analysis_text: str = gemini_resp.text
+    except Exception as exc:  # pragma: no cover
+        analysis_text = f"⚠️ Failed to generate analysis: {exc}"
+
+    # ------------------------------------------------------------------ #
+    # 4. Persist after-action report                                     #
+    # ------------------------------------------------------------------ #
+    report = AfterActionReport.objects.create(
+        conversation=conversation,
+        analysis_content=analysis_text,
+    )
+
+    # ------------------------------------------------------------------ #
+    # 5. Render template                                                 #
+    # ------------------------------------------------------------------ #
+    return render(
+        request,
+        "chat/analysis.html",
+        {
+            "conversation": conversation,
+            "analysis": analysis_text,
+            "report": report,
+        },
     )

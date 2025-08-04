@@ -14,6 +14,12 @@ urlpatterns = [
     path('new/', views.new_conversation, name='new_conversation'),
     # Chat interface for a given conversation id
     path('conversation/<int:conversation_id>/', views.chat_view, name='chat'),
+    # After-action report for a finished conversation
+    path(
+        'conversation/<int:conversation_id>/analysis/',
+        views.conversation_analysis,
+        name='conversation_analysis',
+    ),
     # API endpoint for sending messages to Gemini
     path('send/', views.send_message, name='send_message'),
     # Polling endpoint to fetch grammar analysis results

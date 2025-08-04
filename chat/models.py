@@ -41,7 +41,7 @@ class ChatMessage(models.Model):
 
     Details:
       • ``message``  – the raw user prompt
-      • ``response`` – Gemini’s answer
+      • ``response`` – Gemini's answer
       • ``created_at`` – timestamp when interaction was stored
     """
 
@@ -74,3 +74,42 @@ class ChatMessage(models.Model):
         """Return a truncated preview of the user prompt."""
         msg: str = str(self.message)
         return msg[:50] + ("…" if len(msg) > 50 else "")
+
+
+class AfterActionReport(models.Model):
+    """
+    Stores an AI-generated after-action report for a completed conversation.
+
+    These reports analyze the user's language patterns across an entire conversation,
+    identifying recurring grammar/spelling issues, highlighting strengths, and
+    providing concrete recommendations for improvement.
+
+    Each report is linked to a specific conversation and is generated when the
+    user clicks the "End Conversation" button.
+    """
+
+    conversation = models.ForeignKey(
+        Conversation,
+        on_delete=models.CASCADE,
+        related_name="reports",
+        help_text="Conversation this report analyzes",
+    )
+    analysis_content = models.TextField(
+        help_text="AI-generated analysis of language patterns and recommendations"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        """Django model metadata."""
+
+        ordering = ["-created_at"]
+        verbose_name = "After-Action Report"
+        verbose_name_plural = "After-Action Reports"
+
+    def __str__(self) -> str:
+        """Return the conversation title and date of the report."""
+        friendly_date: str = self.created_at.strftime("%Y-%m-%d %H:%M")
+        # Explicit str(...) cast for static type checking
+        conversation_title: str = str(self.conversation.title)
+        return f"Report for {conversation_title} ({friendly_date})"

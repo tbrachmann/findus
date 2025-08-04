@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>findus - Conversation Analysis</title>
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #f5f5f5;
+            --accent-color: #6c8cc7;
+            --text-color: #333;
+            --light-text: #666;
+            --border-radius: 16px;
+            --shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+                Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+
+        body {
+            background-color: #fafafa;
+            color: var(--text-color);
+            line-height: 1.6;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem 1.5rem;
+            box-shadow: var(--shadow);
+        }
+
+        .header-content {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .header-subtitle {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-top: 0.25rem;
+        }
+
+        .header-date {
+            font-size: 0.85rem;
+            opacity: 0.8;
+        }
+
+        main {
+            flex: 1;
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .analysis-container {
+            background-color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .analysis-title {
+            color: var(--primary-color);
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--accent-color);
+        }
+
+        .analysis-content {
+            white-space: pre-line;
+            line-height: 1.8;
+        }
+
+        .analysis-content ul {
+            padding-left: 1.5rem;
+        }
+
+        .analysis-content h3 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--primary-color);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: space-between;
+        }
+
+        .btn {
+            padding: 0.75rem 1.25rem;
+            border-radius: 24px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--accent-color);
+        }
+
+        .btn-secondary {
+            background-color: white;
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--secondary-color);
+        }
+
+        footer {
+            text-align: center;
+            padding: 1.5rem;
+            background-color: var(--secondary-color);
+            color: var(--light-text);
+            font-size: 0.85rem;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 850px) {
+            main {
+                padding: 1.5rem;
+            }
+
+            .analysis-container {
+                padding: 1.5rem;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .header-date {
+                margin-top: 0.5rem;
+            }
+
+            main {
+                padding: 1rem;
+            }
+
+            .analysis-container {
+                padding: 1rem;
+                border-radius: 12px;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div>
+                <div class="header-title">findus - Conversation Analysis</div>
+                <div class="header-subtitle">{{ conversation.title }}</div>
+            </div>
+            <div class="header-date">{{ conversation.updated_at|date:"F j, Y, g:i a" }}</div>
+        </div>
+    </header>
+
+    <main>
+        <div class="analysis-container">
+            <h2 class="analysis-title">After-Action Report</h2>
+            <div class="analysis-content">{{ analysis|linebreaksbr }}</div>
+        </div>
+
+        <div class="action-buttons">
+            <a href="{% url 'chat' conversation.id %}" class="btn btn-secondary">
+                ← Back to Conversation
+            </a>
+            <a href="{% url 'new_conversation' %}" class="btn btn-primary">
+                Start New Conversation
+            </a>
+        </div>
+    </main>
+
+    <footer>
+        <p>findus - AI-powered language learning assistant</p>
+    </footer>
+</body>
+</html>

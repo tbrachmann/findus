@@ -8,7 +8,7 @@ from django.contrib import admin
 
 # Import both models directly so ChatMessage is available at import-time for
 # the ``@admin.register`` decorator.
-from .models import Conversation, ChatMessage
+from .models import Conversation, ChatMessage, AfterActionReport
 
 # ---------------------------------------------------------------------------
 # Admin registrations
@@ -41,3 +41,22 @@ class ChatMessageAdmin(admin.ModelAdmin):
         # Explicit `str()` cast ensures a concrete ``str`` return type for MyPy.
         msg: str = str(obj.message)
         return msg[:60] + ("…" if len(msg) > 60 else "")
+
+
+# --------------------------------------------------------------------------- #
+# After-action report admin                                                   #
+# --------------------------------------------------------------------------- #
+
+
+@admin.register(AfterActionReport)
+class AfterActionReportAdmin(admin.ModelAdmin):
+    """Admin configuration for :class:`chat.models.AfterActionReport`."""
+
+    list_display = (
+        "id",
+        "conversation",
+        "created_at",
+    )
+    search_fields = ("analysis_content", "conversation__title")
+    readonly_fields = ("created_at", "updated_at")
+    ordering = ("-created_at",)
