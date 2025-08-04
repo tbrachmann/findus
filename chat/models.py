@@ -7,11 +7,18 @@ project.
 # ---------------------------------------------------------------------------
 # Django
 from django.db import models
+from django.contrib.auth.models import User
 
 
 class Conversation(models.Model):
     """Represents a single chat thread that groups many ChatMessage rows."""
 
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="conversations",
+        help_text="Owner of this conversation",
+    )
     title = models.CharField(
         max_length=255,
         default="New Conversation",
@@ -32,7 +39,8 @@ class Conversation(models.Model):
         friendly_date: str = self.created_at.strftime("%Y-%m-%d %H:%M")
         # Explicit str(...) casts silence static-type checkers complaining
         # about the Django model fields being `Any`.
-        return f"{str(self.title)} ({friendly_date})"
+        username: str = str(self.user.username)
+        return f"{str(self.title)} – {username} ({friendly_date})"
 
 
 class ChatMessage(models.Model):
