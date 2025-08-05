@@ -19,10 +19,11 @@ from .models import Conversation, ChatMessage, AfterActionReport
 class ConversationAdmin(admin.ModelAdmin):
     """Admin configuration for :class:`chat.models.Conversation`."""
 
-    list_display = ("id", "title", "created_at", "updated_at")
-    search_fields = ("title",)
+    list_display = ("id", "title", "user", "created_at", "updated_at")
+    search_fields = ("title", "user__username")
     readonly_fields = ("created_at", "updated_at")
     ordering = ("-updated_at",)
+    list_filter = ("user",)
 
 
 @admin.register(ChatMessage)

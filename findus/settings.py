@@ -153,4 +153,22 @@ if not GEMINI_API_KEY:
         "GEMINI_API_KEY=your_api_key_here"
     )
 
+# --------------------------------------------------------------------------- #
+# Django-Extensions configuration                                             #
+# --------------------------------------------------------------------------- #
+
+# Use IPython for the excellent auto-import and rich-traceback experience
+# provided by django-extensions’ *shell_plus* command.
 SHELL_PLUS = "ipython"
+
+# ---------------------------------------------------------------------------
+# Authentication redirects
+# ---------------------------------------------------------------------------
+# Where Django should redirect unauthenticated users who attempt to access
+# `@login_required` views.
+LOGIN_URL = 'login'
+# Where to send users right after a successful login (when no `next` parameter
+# is present in the URL).  We point to the chat landing page.
+LOGIN_REDIRECT_URL = 'home'
+# After logging out, users are returned to the login page.
+LOGOUT_REDIRECT_URL = 'login'

@@ -6,8 +6,13 @@ URL configuration for the chat application.
 
 from django.urls import path
 from . import views
+from . import auth_views  # New import for authentication endpoints
 
 urlpatterns = [
+    # Authentication
+    path('login/', auth_views.login_view, name='login'),
+    path('logout/', auth_views.logout_view, name='logout'),
+    path('register/', auth_views.register_view, name='register'),
     # Landing page -> start a fresh conversation
     path('', views.new_conversation, name='home'),
     # Explicit endpoint to begin a new conversation

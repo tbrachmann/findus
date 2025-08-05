@@ -61,6 +61,37 @@
             align-items: center;
         }
 
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            font-size: 0.9rem;
+            padding-right: 15px;
+            border-right: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .username {
+            font-weight: 600;
+            margin-right: 10px;
+        }
+
+        .logout-link {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: color 0.2s ease;
+        }
+
+        .logout-link:hover {
+            color: white;
+            text-decoration: underline;
+        }
+
         .new-conversation-btn {
             background-color: rgba(255, 255, 255, 0.2);
             color: white;
@@ -73,14 +104,6 @@
             text-decoration: none;
             display: inline-flex;
             align-items: center;
-        }
-
-        .new-conversation-btn:hover {
-            background-color: rgba(255, 255, 255, 0.3);
-        }
-
-        .new-conversation-btn:active {
-            transform: scale(0.97);
         }
 
         /* End Conversation button (muted tone) */
@@ -103,7 +126,11 @@
             background-color: rgba(255, 255, 255, 0.2);
         }
 
-        .end-conversation-btn:active {
+        .new-conversation-btn:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .new-conversation-btn:active {
             transform: scale(0.97);
         }
 
@@ -258,10 +285,20 @@
                 font-size: 0.8rem;
             }
 
-            .end-conversation-btn {
-                padding: 4px 10px;
+            .user-info {
+                padding-right: 8px;
                 font-size: 0.8rem;
-                margin-right: 6px;
+            }
+
+            .header-actions {
+                gap: 8px;
+            }
+
+            .username {
+                margin-right: 5px;
+            }
+            .logout-link {
+                font-size: 0.75rem;
             }
         }
     </style>
@@ -270,11 +307,13 @@
     <div class="chat-container">
         <div class="chat-header">
             <div class="header-title">findus Chat with Gemini</div>
-            <div>
-                <!-- End Conversation button leads to after-action report -->
+            <div class="header-actions">
+                <div class="user-info">
+                    <span class="username">{{ request.user.username }}</span>
+                    <a href="{% url 'logout' %}" class="logout-link">Logout</a>
+                </div>
                 <a href="{% url 'conversation_analysis' conversation.id %}"
                    class="end-conversation-btn">End Conversation</a>
-                <!-- Existing New Conversation button -->
                 <a href="{% url 'new_conversation' %}" class="new-conversation-btn">+ New Conversation</a>
             </div>
         </div>

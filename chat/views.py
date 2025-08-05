@@ -4,22 +4,27 @@ chat/views.py.
 Views for the chat application that integrates with Gemini API.
 """
 
-from typing import Optional
-from django.shortcuts import render, redirect, get_object_or_404
+from typing import Optional, Callable, TypeVar, Any
+import threading
+
+from django.conf import settings
+from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.http import HttpRequest, HttpResponse
-from django.conf import settings
-import threading
-import google.genai as genai
-
+from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
+
+import google.genai as genai
 
 from .models import ChatMessage, Conversation, AfterActionReport
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+# Type variables for view function annotations
+F = TypeVar('F', bound=Callable[..., Any])
 
 
 def analyze_grammar_async(message_id: int, user_message: str) -> None:
@@ -56,6 +61,7 @@ def analyze_grammar_async(message_id: int, user_message: str) -> None:
         )
 
 
+@login_required  # type: ignore
 def chat_view(request: HttpRequest, conversation_id: int | None = None) -> HttpResponse:
     """
     Render the main chat interface with message history.
@@ -70,7 +76,9 @@ def chat_view(request: HttpRequest, conversation_id: int | None = None) -> HttpR
     if conversation_id is None:
         return redirect("new_conversation")
 
-    conversation = get_object_or_404(Conversation, pk=conversation_id)
+    conversation = get_object_or_404(
+        Conversation, pk=conversation_id, user=request.user
+    )
     messages = conversation.messages.all()  # ordering defined in Meta
 
     return render(
@@ -83,12 +91,14 @@ def chat_view(request: HttpRequest, conversation_id: int | None = None) -> HttpR
     )
 
 
+@login_required  # type: ignore
 def new_conversation(request: HttpRequest) -> HttpResponse:
     """Create a new conversation and redirect to its chat view."""
-    convo = Conversation.objects.create()
+    convo = Conversation.objects.create(user=request.user)
     return redirect(reverse("chat", args=[convo.id]))
 
 
+@login_required  # type: ignore
 def send_message(request: HttpRequest) -> JsonResponse:
     """
     Process a user message, send to Gemini API, and return the response.
@@ -114,7 +124,9 @@ def send_message(request: HttpRequest) -> JsonResponse:
 
     try:
         # Look up the conversation
-        conversation = get_object_or_404(Conversation, pk=conversation_id)
+        conversation = get_object_or_404(
+            Conversation, pk=conversation_id, user=request.user
+        )
 
         # ------------------------------------------------------------------
         # 1. Build the Google GenAI client with the project's API key
@@ -174,6 +186,7 @@ def send_message(request: HttpRequest) -> JsonResponse:
         )
 
 
+@login_required  # type: ignore
 def check_grammar_status(request: HttpRequest, message_id: int) -> JsonResponse:
     """
     Return grammar analysis for a given ``ChatMessage``.
@@ -198,6 +211,7 @@ def check_grammar_status(request: HttpRequest, message_id: int) -> JsonResponse:
 # --------------------------------------------------------------------------- #
 
 
+@login_required  # type: ignore
 def conversation_analysis(
     request: HttpRequest,
     conversation_id: int,
@@ -218,7 +232,9 @@ def conversation_analysis(
     # ------------------------------------------------------------------ #
     # 1. Fetch conversation & ensure it has messages                     #
     # ------------------------------------------------------------------ #
-    conversation: Conversation = get_object_or_404(Conversation, pk=conversation_id)
+    conversation: Conversation = get_object_or_404(
+        Conversation, pk=conversation_id, user=request.user
+    )
     messages_qs = conversation.messages.all()  # ordering in model.Meta
 
     # Redirect to chat view when there is nothing to analyse yet.
