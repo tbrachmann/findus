@@ -33,4 +33,22 @@ urlpatterns = [
         views.check_grammar_status,
         name='check_grammar_status',
     ),
+    # ------------------------------------------------------------------ #
+    # Personalised prompt API endpoints                                  #
+    # ------------------------------------------------------------------ #
+    path(
+        'api/prompt/',
+        views.get_personalized_prompt,
+        name='get_personalized_prompt',
+    ),
+    path(
+        'api/scenario/',
+        views.get_scenario_prompt,
+        name='get_scenario_prompt',
+    ),
+    path(
+        'api/conversation-with-prompt/',
+        views.conversation_with_prompt,
+        name='conversation_with_prompt',
+    ),
 ]

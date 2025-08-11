@@ -18,6 +18,7 @@ from django.utils import timezone
 import google.genai as genai
 
 from .models import ChatMessage, Conversation, AfterActionReport
+from .services import PromptGeneratorService  # ← personalised prompts
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -83,6 +84,70 @@ def chat_view(request: HttpRequest, conversation_id: int | None = None) -> HttpR
 
     return render(
         request,
+
+# --------------------------------------------------------------------------- #
+# Personalised prompt endpoints                                               #
+# --------------------------------------------------------------------------- #
+
+
+@login_required  # type: ignore
+def get_personalized_prompt(request: HttpRequest) -> JsonResponse:
+    """
+    Return a JSON payload with a personalised learning prompt for the user.
+
+    The prompt is generated according to the learner's level and the
+    weaknesses stored on :class:`chat.models.UserProfile`.
+    """
+
+    if request.method != "GET":
+        return JsonResponse({"error": "Only GET requests are allowed."}, status=405)
+
+    prompt_data = PromptGeneratorService.generate_prompt(request.user)
+    return JsonResponse(prompt_data)
+
+
+@login_required  # type: ignore
+def get_scenario_prompt(request: HttpRequest) -> JsonResponse:
+    """
+    Return an immersive scenario-based prompt tailored to the user's level.
+
+    The response is a JSON object containing a 'title', 'context',
+    'your_role', 'ai_role' and 'goal' field.
+    """
+
+    if request.method != "GET":
+        return JsonResponse({"error": "Only GET requests are allowed."}, status=405)
+
+    scenario_data = PromptGeneratorService.generate_scenario_prompt(request.user)
+    return JsonResponse(scenario_data)
+
+
+@login_required  # type: ignore
+def conversation_with_prompt(request: HttpRequest) -> JsonResponse:
+    """
+    Create a fresh conversation *and* return an initial personalised prompt.
+
+    This helper lets the front-end immediately display a starting idea for
+    the learner without having to perform two separate round-trips (one to
+    create the conversation, another to fetch a prompt).
+    """
+
+    if request.method != "POST":
+        return JsonResponse({"error": "Only POST requests are allowed."}, status=405)
+
+    # 1. Create conversation
+    convo = Conversation.objects.create(user=request.user)
+
+    # 2. Generate starting prompt
+    prompt_data = PromptGeneratorService.generate_prompt(request.user)
+
+    return JsonResponse(
+        {
+            "conversation_id": convo.id,
+            "prompt": prompt_data.get("prompt"),
+            "prompt_metadata": prompt_data,
+        }
+    )
         "chat/chat.html",
         {
             "messages": messages,

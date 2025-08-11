@@ -121,3 +121,54 @@ class AfterActionReport(models.Model):
         # Explicit str(...) cast for static type checking
         conversation_title: str = str(self.conversation.title)
         return f"Report for {conversation_title} ({friendly_date})"
+
+
+class UserProfile(models.Model):
+    """
+    Extends the built-in Django ``User`` model with language-learning metadata.
+
+    The profile tracks the learner's level (beginner → advanced), the timestamp
+    when that level was last (re-)calculated, and a JSON blob of recently
+    identified weaknesses that can be used to generate tailored prompts.
+    """
+
+    class Level(models.TextChoices):
+        """Supported learner proficiency buckets."""
+
+        BEGINNER = "BEGINNER", "Beginner"
+        INTERMEDIATE = "INTERMEDIATE", "Intermediate"
+        ADVANCED = "ADVANCED", "Advanced"
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="profile",
+        help_text="The Django auth user this profile belongs to",
+    )
+    level = models.CharField(
+        max_length=12,
+        choices=Level.choices,
+        default=Level.BEGINNER,
+        help_text="Current proficiency level inferred from after-action reports",
+    )
+    level_updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Timestamp of the last level inference update",
+    )
+    weaknesses = models.JSONField(
+        default=dict,
+        blank=True,
+        null=True,
+        help_text="JSON object capturing the learner's recent weaknesses",
+    )
+
+    class Meta:
+        """Django model metadata."""
+
+        verbose_name = "User Profile"
+        verbose_name_plural = "User Profiles"
+
+    def __str__(self) -> str:
+        """Readable identifier for admin & debugging."""
+        username: str = str(self.user.username)
+        return f"{username} profile"
