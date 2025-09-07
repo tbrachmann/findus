@@ -10,9 +10,11 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 from typing import List
-import os
+
+import logfire
 from dotenv import load_dotenv
 
 # Load environment variables from a `.env` file located in the project root.
@@ -152,6 +154,29 @@ if not GEMINI_API_KEY:
         "Create a `.env` file in the project root with a line like:\n"
         "GEMINI_API_KEY=your_api_key_here"
     )
+
+# --------------------------------------------------------------------------- #
+# Logfire configuration                                                       #
+# --------------------------------------------------------------------------- #
+
+LOGFIRE_TOKEN: str | None = os.getenv("LOGFIRE_KEY")
+
+if not LOGFIRE_TOKEN:
+    raise RuntimeError(
+        "LOGFIRE_KEY not set.\n"
+        "Create a `.env` file in the project root with a line like:\n"
+        "LOGFIRE_KEY=your_logfire_key_here"
+    )
+
+logfire.configure(
+    token=LOGFIRE_TOKEN,
+    service_name="findus-django",
+    service_version="1.0.0",
+    environment="development",
+)
+
+logfire.instrument_django()
+logfire.instrument_sqlite3()
 
 # --------------------------------------------------------------------------- #
 # Django-Extensions configuration                                             #

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.black]
@@ -54,13 +54,18 @@ version = "0.1.0"
 description = "A Django chat application integrated with Google Gemini API"
 readme = "README.md"
 requires-python = ">=3.13"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "Toby Brachmann"}
 ]
 dependencies = [
     "django>=5.2.0",
     "google-genai>=1.0.0",
+    "pydantic-ai>=1.0.0",
+    "logfire[django,sqlite3]>=4.0.0",
+    "python-dotenv>=1.0.0",
+    "django-extensions>=3.0.0",
+    "ipython>=8.0.0",
 ]
 
 [project.optional-dependencies]
@@ -69,7 +74,11 @@ dev = [
     "flake8",
     "mypy",
     "pre-commit",
+    "django-stubs",
 ]
+
+[tool.setuptools]
+packages = ["findus", "chat"]
 
 [tool.flake8]
 max-line-length = 100

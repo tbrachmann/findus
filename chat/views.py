@@ -7,7 +7,6 @@ Views for the chat application that integrates with Gemini API.
 from typing import Optional, Callable, TypeVar, Any
 import threading
 
-from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.http import HttpRequest, HttpResponse
@@ -15,9 +14,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
 
-import google.genai as genai
-
 from .models import ChatMessage, Conversation, AfterActionReport
+from .ai_service import ai_service
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -31,7 +29,7 @@ def analyze_grammar_async(message_id: int, user_message: str) -> None:
     """
     Run in a background thread.
 
-    1. Ask Gemini to analyse ``user_message`` for grammar / spelling issues.
+    1. Ask AI to analyse ``user_message`` for grammar / spelling issues using Pydantic AI.
     2. Persist the feedback to ``ChatMessage.grammar_analysis``.
 
     Args:
@@ -39,19 +37,7 @@ def analyze_grammar_async(message_id: int, user_message: str) -> None:
         user_message: The original user prompt
     """
     try:
-        client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        prompt = (
-            "Analyze this text for grammatical errors and spelling mistakes. "
-            "Provide brief, helpful feedback. If there are no issues, "
-            "respond with 'No issues found.'\n\n"
-            f"Text:\n\"\"\"\n{user_message}\n\"\"\""
-        )
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=prompt,
-        )
-        analysis_text = response.text
-
+        analysis_text = ai_service.analyze_grammar_sync(user_message)
         # Update only the grammar_analysis column to avoid race-conditions
         ChatMessage.objects.filter(pk=message_id).update(grammar_analysis=analysis_text)
     except Exception as exc:  # pragma: no cover – best-effort background task
@@ -129,21 +115,11 @@ def send_message(request: HttpRequest) -> JsonResponse:
         )
 
         # ------------------------------------------------------------------
-        # 1. Build the Google GenAI client with the project's API key
-        # 2. Call the `generate_content` helper on the client's `models`
-        #    collection (per official docs) to fetch a response from the
-        #    `gemini-2.5-flash-lite` model.
+        # 1. Use Pydantic AI service to generate response with Logfire tracking
+        # 2. This automatically logs input/output to Logfire for observability
         # ------------------------------------------------------------------
 
-        client = genai.Client(api_key=settings.GEMINI_API_KEY)
-
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=user_message,
-        )
-
-        # Extract the text from the API response
-        ai_response = response.text
+        ai_response = ai_service.generate_chat_response_sync(user_message)
 
         # Save the message and response to the database with conversation
         chat_message = ChatMessage.objects.create(
@@ -278,20 +254,15 @@ def conversation_analysis(
         "• Provide 3-5 concrete exercises or recommendations to improve.\n"
         "Respond in concise bullet-points."
     )
-    prompt: str = "".join(prompt_parts)
 
     # ------------------------------------------------------------------ #
-    # 3. Call Gemini                                                     #
+    # 3. Call AI service for conversation analysis                       #
     # ------------------------------------------------------------------ #
-    try:
-        client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        gemini_resp = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=prompt,
-        )
-        analysis_text: str = gemini_resp.text
-    except Exception as exc:  # pragma: no cover
-        analysis_text = f"⚠️ Failed to generate analysis: {exc}"
+    messages_data = []
+    for msg in messages_qs:
+        messages_data.append({'message': msg.message, 'feedback': msg.grammar_analysis})
+
+    analysis_text: str = ai_service.analyze_conversation_sync(messages_data)
 
     # ------------------------------------------------------------------ #
     # 4. Persist after-action report                                     #
