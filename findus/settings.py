@@ -82,6 +82,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'findus.wsgi.application'
+ASGI_APPLICATION = 'findus.asgi.application'
 
 
 # Database
@@ -91,6 +92,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        'CONN_MAX_AGE': 0,  # Disable persistent connections for async
     }
 }
 

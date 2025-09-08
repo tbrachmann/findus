@@ -5,15 +5,18 @@ Views for the chat application that integrates with Gemini API.
 """
 
 from typing import Optional, Callable, TypeVar, Any
-import threading
 import random
+import asyncio
 
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import render, redirect, get_object_or_404
+from django.shortcuts import render, redirect, aget_object_or_404
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from asgiref.sync import sync_to_async
 
 from .models import ChatMessage, Conversation, AfterActionReport
 from .ai_service import ai_service
@@ -45,9 +48,9 @@ CONVERSATION_STARTERS = [
 ]
 
 
-def analyze_grammar_async(message_id: int, user_message: str) -> None:
+async def analyze_grammar_async(message_id: int, user_message: str) -> None:
     """
-    Run in a background thread.
+    Async grammar analysis using Django's async ORM.
 
     1. Ask AI to analyse ``user_message`` for grammar / spelling issues using Pydantic AI.
     2. Persist the feedback to ``ChatMessage.grammar_analysis``.
@@ -57,18 +60,18 @@ def analyze_grammar_async(message_id: int, user_message: str) -> None:
         user_message: The original user prompt
     """
     try:
-        analysis_text = ai_service.analyze_grammar_sync(user_message)
+        analysis_text = await ai_service.analyze_grammar(user_message)
         # Update only the grammar_analysis column to avoid race-conditions
-        ChatMessage.objects.filter(pk=message_id).update(grammar_analysis=analysis_text)
+        await ChatMessage.objects.filter(pk=message_id).aupdate(grammar_analysis=analysis_text)
     except Exception as exc:  # pragma: no cover – best-effort background task
         # In production you might log this.
-        ChatMessage.objects.filter(pk=message_id).update(
+        await ChatMessage.objects.filter(pk=message_id).aupdate(
             grammar_analysis=f"Analysis failed: {exc}"
         )
 
 
 @login_required  # type: ignore
-def chat_view(request: HttpRequest, conversation_id: int | None = None) -> HttpResponse:
+async def chat_view(request: HttpRequest, conversation_id: int | None = None) -> HttpResponse:
     """
     Render the main chat interface with message history.
 
@@ -82,10 +85,10 @@ def chat_view(request: HttpRequest, conversation_id: int | None = None) -> HttpR
     if conversation_id is None:
         return redirect("new_conversation")
 
-    conversation = get_object_or_404(
+    conversation = await aget_object_or_404(
         Conversation, pk=conversation_id, user=request.user
     )
-    messages = conversation.messages.all()  # ordering defined in Meta
+    messages = [msg async for msg in conversation.messages.all()]  # ordering defined in Meta
 
     # Select a random conversation starter for new conversations
     conversation_starter = random.choice(CONVERSATION_STARTERS)
@@ -102,14 +105,14 @@ def chat_view(request: HttpRequest, conversation_id: int | None = None) -> HttpR
 
 
 @login_required  # type: ignore
-def new_conversation(request: HttpRequest) -> HttpResponse:
+async def new_conversation(request: HttpRequest) -> HttpResponse:
     """Create a new conversation and redirect to its chat view."""
-    convo = Conversation.objects.create(user=request.user)
+    convo = await Conversation.objects.acreate(user=request.user)
     return redirect(reverse("chat", args=[convo.id]))
 
 
 @login_required  # type: ignore
-def send_message(request: HttpRequest) -> JsonResponse:
+async def send_message(request: HttpRequest) -> JsonResponse:
     """
     Process a user message, send to Gemini API, and return the response.
 
@@ -134,7 +137,7 @@ def send_message(request: HttpRequest) -> JsonResponse:
 
     try:
         # Look up the conversation
-        conversation = get_object_or_404(
+        conversation = await aget_object_or_404(
             Conversation, pk=conversation_id, user=request.user
         )
 
@@ -143,27 +146,24 @@ def send_message(request: HttpRequest) -> JsonResponse:
         # 2. This automatically logs input/output to Logfire for observability
         # ------------------------------------------------------------------
 
-        ai_response = ai_service.generate_chat_response_sync(user_message)
+        ai_response = await ai_service.generate_chat_response(user_message)
 
         # Save the message and response to the database with conversation
-        chat_message = ChatMessage.objects.create(
+        chat_message = await ChatMessage.objects.acreate(
             conversation=conversation, message=user_message, response=ai_response
         )
 
         # Update the conversation's last updated timestamp
         conversation.updated_at = timezone.now()
-        conversation.save(update_fields=['updated_at'])
-
+        
         # --------------------------------------------------------------
-        # Kick-off background grammar / spelling analysis so the user
-        # gets the main AI answer immediately.  We mark the thread as
-        # *daemon* so it won't block server shutdown.
+        # Run conversation save and grammar analysis concurrently
+        # This ensures the grammar analysis actually completes
         # --------------------------------------------------------------
-        threading.Thread(
-            target=analyze_grammar_async,
-            args=(chat_message.id, user_message),
-            daemon=True,
-        ).start()
+        await asyncio.gather(
+            conversation.asave(update_fields=['updated_at']),
+            analyze_grammar_async(chat_message.id, user_message)
+        )
 
         # Return the response as JSON
         return JsonResponse(
@@ -187,7 +187,7 @@ def send_message(request: HttpRequest) -> JsonResponse:
 
 
 @login_required  # type: ignore
-def check_grammar_status(request: HttpRequest, message_id: int) -> JsonResponse:
+async def check_grammar_status(request: HttpRequest, message_id: int) -> JsonResponse:
     """
     Return grammar analysis for a given ``ChatMessage``.
 
@@ -196,7 +196,7 @@ def check_grammar_status(request: HttpRequest, message_id: int) -> JsonResponse:
     if request.method != "GET":
         return JsonResponse({"error": "Only GET requests are allowed"}, status=405)
 
-    message: ChatMessage = get_object_or_404(ChatMessage, pk=message_id)
+    message: ChatMessage = await aget_object_or_404(ChatMessage, pk=message_id)
 
     # Return analysis (may be empty string / None)
     return JsonResponse(
@@ -212,7 +212,7 @@ def check_grammar_status(request: HttpRequest, message_id: int) -> JsonResponse:
 
 
 @login_required  # type: ignore
-def conversation_analysis(
+async def conversation_analysis(
     request: HttpRequest,
     conversation_id: int,
 ) -> HttpResponse:
@@ -232,19 +232,19 @@ def conversation_analysis(
     # ------------------------------------------------------------------ #
     # 1. Fetch conversation & ensure it has messages                     #
     # ------------------------------------------------------------------ #
-    conversation: Conversation = get_object_or_404(
+    conversation: Conversation = await aget_object_or_404(
         Conversation, pk=conversation_id, user=request.user
     )
     messages_qs = conversation.messages.all()  # ordering in model.Meta
 
     # Redirect to chat view when there is nothing to analyse yet.
-    if not messages_qs.exists():
+    if not await messages_qs.aexists():
         return redirect(reverse("chat", args=[conversation.id]))
 
     # ------------------------------------------------------------------ #
     # 1b. If we've already generated a report, re-use it                 #
     # ------------------------------------------------------------------ #
-    existing_report: Optional[AfterActionReport] = conversation.reports.first()
+    existing_report: Optional[AfterActionReport] = await conversation.reports.afirst()
 
     if existing_report:
         return render(
@@ -267,7 +267,7 @@ def conversation_analysis(
         "the grammar feedback they already received.\n\n",
     ]
 
-    for msg in messages_qs:
+    async for msg in messages_qs:
         feedback = msg.grammar_analysis or "No feedback available."
         prompt_parts.append(f"User: {msg.message}\nFeedback: {feedback}\n---\n")
 
@@ -283,15 +283,15 @@ def conversation_analysis(
     # 3. Call AI service for conversation analysis                       #
     # ------------------------------------------------------------------ #
     messages_data = []
-    for msg in messages_qs:
+    async for msg in messages_qs:
         messages_data.append({'message': msg.message, 'feedback': msg.grammar_analysis})
 
-    analysis_text: str = ai_service.analyze_conversation_sync(messages_data)
+    analysis_text: str = await ai_service.analyze_conversation(messages_data)
 
     # ------------------------------------------------------------------ #
     # 4. Persist after-action report                                     #
     # ------------------------------------------------------------------ #
-    report = AfterActionReport.objects.create(
+    report = await AfterActionReport.objects.acreate(
         conversation=conversation,
         analysis_content=analysis_text,
     )
