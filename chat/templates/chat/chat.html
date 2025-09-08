@@ -343,10 +343,10 @@
                     </div>
                 {% endfor %}
             {% else %}
-                <!-- Default welcome message -->
+                <!-- Dynamic conversation starter -->
                 <div class="message-row ai-row">
                     <div class="message-bubble ai-bubble">
-                        Hello! I'm Gemini. How can I help you today?
+                        Hello! I'm Gemini. {{ conversation_starter }}
                         <div class="message-time">Just now</div>
                     </div>
                 </div>

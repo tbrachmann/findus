@@ -6,6 +6,7 @@ Views for the chat application that integrates with Gemini API.
 
 from typing import Optional, Callable, TypeVar, Any
 import threading
+import random
 
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
@@ -23,6 +24,25 @@ from .ai_service import ai_service
 
 # Type variables for view function annotations
 F = TypeVar('F', bound=Callable[..., Any])
+
+# Conversation starter prompts - elementary language textbook style
+CONVERSATION_STARTERS = [
+    "Tell me about your family?",
+    "What did you do today?",
+    "What do you like doing for fun?",
+    "What did you do this weekend?",
+    "What's your favorite food?",
+    "Do you have any pets?",
+    "What's your favorite season and why?",
+    "What do you like to do after school or work?",
+    "Tell me about your best friend?",
+    "What's your favorite holiday?",
+    "What kind of music do you like?",
+    "Do you play any sports?",
+    "What's your favorite subject in school?",
+    "Tell me about your hometown?",
+    "What are your hobbies?",
+]
 
 
 def analyze_grammar_async(message_id: int, user_message: str) -> None:
@@ -67,12 +87,16 @@ def chat_view(request: HttpRequest, conversation_id: int | None = None) -> HttpR
     )
     messages = conversation.messages.all()  # ordering defined in Meta
 
+    # Select a random conversation starter for new conversations
+    conversation_starter = random.choice(CONVERSATION_STARTERS)
+
     return render(
         request,
         "chat/chat.html",
         {
             "messages": messages,
             "conversation": conversation,
+            "conversation_starter": conversation_starter,
         },
     )
 
