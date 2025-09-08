@@ -461,7 +461,6 @@ class AsyncGrammarAnalysisTest(TransactionTestCase):
         await self.asetUp()
         client = AsyncClient()
         await sync_to_async(client.force_login)(self.user)
-        
         # Mock the AI service methods
         mock_ai_service.generate_chat_response = AsyncMock(
             return_value="This is a test response from AI"
@@ -490,7 +489,6 @@ class AsyncGrammarAnalysisTest(TransactionTestCase):
         # Verify that grammar analysis was completed (not None)
         self.assertIsNotNone(message.grammar_analysis)
         self.assertEqual(message.grammar_analysis, "Grammar analysis completed successfully.")
-        
         # Verify both AI service methods were called
         mock_ai_service.generate_chat_response.assert_called_once()
         mock_ai_service.analyze_grammar.assert_called_once_with(
@@ -589,7 +587,6 @@ class AIServiceRealIntegrationTest(TransactionTestCase):
         from chat.ai_service import AIService
         
         service = AIService()
-        
         # This should now work without AttributeError
         try:
             response = await service.generate_chat_response("Hello, test message")
