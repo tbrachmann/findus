@@ -5,19 +5,18 @@ Views for the chat application that integrates with Gemini API.
 """
 
 from typing import Optional, Callable, TypeVar, Any
-import threading
+import asyncio
 
-from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
-
-import google.genai as genai
+from asgiref.sync import sync_to_async
 
 from .models import ChatMessage, Conversation, AfterActionReport
+from .ai_service import ai_service
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -25,40 +24,6 @@ from .models import ChatMessage, Conversation, AfterActionReport
 
 # Type variables for view function annotations
 F = TypeVar('F', bound=Callable[..., Any])
-
-
-def analyze_grammar_async(message_id: int, user_message: str) -> None:
-    """
-    Run in a background thread.
-
-    1. Ask Gemini to analyse ``user_message`` for grammar / spelling issues.
-    2. Persist the feedback to ``ChatMessage.grammar_analysis``.
-
-    Args:
-        message_id: Primary-key of the ``ChatMessage`` row to update
-        user_message: The original user prompt
-    """
-    try:
-        client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        prompt = (
-            "Analyze this text for grammatical errors and spelling mistakes. "
-            "Provide brief, helpful feedback. If there are no issues, "
-            "respond with 'No issues found.'\n\n"
-            f"Text:\n\"\"\"\n{user_message}\n\"\"\""
-        )
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=prompt,
-        )
-        analysis_text = response.text
-
-        # Update only the grammar_analysis column to avoid race-conditions
-        ChatMessage.objects.filter(pk=message_id).update(grammar_analysis=analysis_text)
-    except Exception as exc:  # pragma: no cover – best-effort background task
-        # In production you might log this.
-        ChatMessage.objects.filter(pk=message_id).update(
-            grammar_analysis=f"Analysis failed: {exc}"
-        )
 
 
 @login_required  # type: ignore
@@ -99,7 +64,7 @@ def new_conversation(request: HttpRequest) -> HttpResponse:
 
 
 @login_required  # type: ignore
-def send_message(request: HttpRequest) -> JsonResponse:
+async def send_message(request: HttpRequest) -> JsonResponse:
     """
     Process a user message, send to Gemini API, and return the response.
 
@@ -123,47 +88,44 @@ def send_message(request: HttpRequest) -> JsonResponse:
         return JsonResponse({'error': 'Conversation ID is required'}, status=400)
 
     try:
-        # Look up the conversation
-        conversation = get_object_or_404(
+        # Look up the conversation using sync_to_async
+        conversation = await sync_to_async(get_object_or_404)(
             Conversation, pk=conversation_id, user=request.user
         )
 
         # ------------------------------------------------------------------
-        # 1. Build the Google GenAI client with the project's API key
-        # 2. Call the `generate_content` helper on the client's `models`
-        #    collection (per official docs) to fetch a response from the
-        #    `gemini-2.5-flash-lite` model.
+        # 1. Use Pydantic AI service to generate response with Logfire tracking
+        # 2. This automatically logs input/output to Logfire for observability
         # ------------------------------------------------------------------
 
-        client = genai.Client(api_key=settings.GEMINI_API_KEY)
-
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=user_message,
+        # Run both chat response and grammar analysis concurrently
+        ai_response, grammar_analysis = await asyncio.gather(
+            ai_service.generate_chat_response(user_message),
+            ai_service.analyze_grammar(user_message),
+            return_exceptions=True,
         )
 
-        # Extract the text from the API response
-        ai_response = response.text
+        # Handle exceptions gracefully
+        if isinstance(ai_response, Exception):
+            return JsonResponse(
+                {'error': f'Error communicating with Gemini API: {str(ai_response)}'},
+                status=500,
+            )
+
+        if isinstance(grammar_analysis, Exception):
+            grammar_analysis = f"Analysis failed: {str(grammar_analysis)}"
 
         # Save the message and response to the database with conversation
-        chat_message = ChatMessage.objects.create(
-            conversation=conversation, message=user_message, response=ai_response
+        chat_message = await sync_to_async(ChatMessage.objects.create)(
+            conversation=conversation,
+            message=user_message,
+            response=ai_response,
+            grammar_analysis=grammar_analysis,
         )
 
         # Update the conversation's last updated timestamp
         conversation.updated_at = timezone.now()
-        conversation.save(update_fields=['updated_at'])
-
-        # --------------------------------------------------------------
-        # Kick-off background grammar / spelling analysis so the user
-        # gets the main AI answer immediately.  We mark the thread as
-        # *daemon* so it won't block server shutdown.
-        # --------------------------------------------------------------
-        threading.Thread(
-            target=analyze_grammar_async,
-            args=(chat_message.id, user_message),
-            daemon=True,
-        ).start()
+        await sync_to_async(conversation.save)(update_fields=['updated_at'])
 
         # Return the response as JSON
         return JsonResponse(
@@ -212,7 +174,7 @@ def check_grammar_status(request: HttpRequest, message_id: int) -> JsonResponse:
 
 
 @login_required  # type: ignore
-def conversation_analysis(
+async def conversation_analysis(
     request: HttpRequest,
     conversation_id: int,
 ) -> HttpResponse:
@@ -232,19 +194,21 @@ def conversation_analysis(
     # ------------------------------------------------------------------ #
     # 1. Fetch conversation & ensure it has messages                     #
     # ------------------------------------------------------------------ #
-    conversation: Conversation = get_object_or_404(
+    conversation: Conversation = await sync_to_async(get_object_or_404)(
         Conversation, pk=conversation_id, user=request.user
     )
     messages_qs = conversation.messages.all()  # ordering in model.Meta
 
     # Redirect to chat view when there is nothing to analyse yet.
-    if not messages_qs.exists():
+    if not await sync_to_async(messages_qs.exists)():
         return redirect(reverse("chat", args=[conversation.id]))
 
     # ------------------------------------------------------------------ #
     # 1b. If we've already generated a report, re-use it                 #
     # ------------------------------------------------------------------ #
-    existing_report: Optional[AfterActionReport] = conversation.reports.first()
+    existing_report: Optional[AfterActionReport] = await sync_to_async(
+        conversation.reports.first
+    )()
 
     if existing_report:
         return render(
@@ -278,25 +242,20 @@ def conversation_analysis(
         "• Provide 3-5 concrete exercises or recommendations to improve.\n"
         "Respond in concise bullet-points."
     )
-    prompt: str = "".join(prompt_parts)
 
     # ------------------------------------------------------------------ #
-    # 3. Call Gemini                                                     #
+    # 3. Call AI service for conversation analysis                       #
     # ------------------------------------------------------------------ #
-    try:
-        client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        gemini_resp = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=prompt,
-        )
-        analysis_text: str = gemini_resp.text
-    except Exception as exc:  # pragma: no cover
-        analysis_text = f"⚠️ Failed to generate analysis: {exc}"
+    messages_data = []
+    for msg in messages_qs:
+        messages_data.append({'message': msg.message, 'feedback': msg.grammar_analysis})
+
+    analysis_text: str = await ai_service.analyze_conversation(messages_data)
 
     # ------------------------------------------------------------------ #
     # 4. Persist after-action report                                     #
     # ------------------------------------------------------------------ #
-    report = AfterActionReport.objects.create(
+    report = await sync_to_async(AfterActionReport.objects.create)(
         conversation=conversation,
         analysis_content=analysis_text,
     )
