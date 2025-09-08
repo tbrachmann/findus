@@ -22,76 +22,72 @@ from .ai_service import ai_service
 class AsyncChatViewsTest(TransactionTestCase):
     """Test async chat views with mocked AI service."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data."""
         self.client = AsyncClient()
-        
-    async def asetUp(self):
+
+    async def asetUp(self) -> None:
         """Set up async test data."""
         self.user = await User.objects.acreate_user(
-            username='testuser',
-            password='testpass123',
-            email='test@example.com'
-        )
-        
-        self.conversation = await Conversation.objects.acreate(
-            user=self.user,
-            title='Test Conversation'
+            username='testuser', password='testpass123', email='test@example.com'
         )
 
-    async def test_new_conversation_authenticated(self):
+        self.conversation = await Conversation.objects.acreate(
+            user=self.user, title='Test Conversation'
+        )
+
+    async def test_new_conversation_authenticated(self) -> None:
         """Test creating a new conversation when authenticated."""
         await self.asetUp()
         await sync_to_async(self.client.force_login)(self.user)
-        
+
         response = await self.client.get(reverse('new_conversation'))
-        
+
         self.assertEqual(response.status_code, 302)
         # Should redirect to a chat view with the new conversation ID
         self.assertIn('/conversation/', response.url)
 
-    async def test_new_conversation_redirects_unauthenticated(self):
+    async def test_new_conversation_redirects_unauthenticated(self) -> None:
         """Test new conversation redirects to login when not authenticated."""
         await self.asetUp()
         response = await self.client.get(reverse('new_conversation'))
-        
+
         self.assertEqual(response.status_code, 302)
         self.assertIn('login', response.url)
 
-    async def test_chat_view_authenticated(self):
+    async def test_chat_view_authenticated(self) -> None:
         """Test chat view loads correctly for authenticated user."""
         await self.asetUp()
         await sync_to_async(self.client.force_login)(self.user)
-        
+
         response = await self.client.get(
             reverse('chat', kwargs={'conversation_id': self.conversation.id})
         )
-        
+
         self.assertEqual(response.status_code, 200)
         # Check that the response contains the conversation ID in a URL or form field
         self.assertContains(response, str(self.conversation.id))
 
-    async def test_chat_view_wrong_user(self):
+    async def test_chat_view_wrong_user(self) -> None:
         """Test chat view returns 404 for wrong user."""
         await self.asetUp()
         other_user = await User.objects.acreate_user(
-            username='otheruser',
-            password='testpass123'
+            username='otheruser', password='testpass123'
         )
         await sync_to_async(self.client.force_login)(other_user)
-        
+
         response = await self.client.get(
             reverse('chat', kwargs={'conversation_id': self.conversation.id})
         )
-        
+
         self.assertEqual(response.status_code, 404)
 
     @patch('chat.views.ai_service')
-    async def test_send_message_success(self, mock_ai_service):
+    async def test_send_message_success(self, mock_ai_service: MagicMock) -> None:
         """Test sending a message successfully with mocked AI service."""
         await self.asetUp()
         await sync_to_async(self.client.force_login)(self.user)
-        
+
         # Mock the AI service methods
         mock_ai_service.generate_chat_response = AsyncMock(
             return_value="This is a test response from AI"
@@ -99,178 +95,189 @@ class AsyncChatViewsTest(TransactionTestCase):
         mock_ai_service.analyze_grammar = AsyncMock(
             return_value="No grammar issues found."
         )
-        
-        response = await self.client.post(reverse('send_message'), {
-            'message': 'Hello, how are you?',
-            'conversation_id': str(self.conversation.id)
-        })
-        
+
+        response = await self.client.post(
+            reverse('send_message'),
+            {
+                'message': 'Hello, how are you?',
+                'conversation_id': str(self.conversation.id),
+            },
+        )
+
         self.assertEqual(response.status_code, 200)
         response_data = json.loads(response.content)
-        
+
         self.assertEqual(response_data['message'], 'Hello, how are you?')
         self.assertEqual(response_data['response'], 'This is a test response from AI')
         self.assertIn('timestamp', response_data)
         self.assertIn('message_id', response_data)
-        
+
         # Verify the AI service was called
-        mock_ai_service.generate_chat_response.assert_called_once_with('Hello, how are you?')
-        
+        mock_ai_service.generate_chat_response.assert_called_once_with(
+            'Hello, how are you?'
+        )
+
         # Verify the message was saved
         message_count = await ChatMessage.objects.filter(
             conversation=self.conversation
         ).acount()
         self.assertEqual(message_count, 1)
 
-    async def test_send_message_empty_message(self):
+    async def test_send_message_empty_message(self) -> None:
         """Test sending an empty message returns error."""
         await self.asetUp()
         await sync_to_async(self.client.force_login)(self.user)
-        
-        response = await self.client.post(reverse('send_message'), {
-            'message': '',
-            'conversation_id': str(self.conversation.id)
-        })
-        
+
+        response = await self.client.post(
+            reverse('send_message'),
+            {'message': '', 'conversation_id': str(self.conversation.id)},
+        )
+
         self.assertEqual(response.status_code, 400)
         response_data = json.loads(response.content)
         self.assertIn('error', response_data)
         self.assertEqual(response_data['error'], 'Message cannot be empty')
 
-    async def test_send_message_missing_conversation_id(self):
+    async def test_send_message_missing_conversation_id(self) -> None:
         """Test sending a message without conversation ID returns error."""
         await self.asetUp()
         await sync_to_async(self.client.force_login)(self.user)
-        
-        response = await self.client.post(reverse('send_message'), {
-            'message': 'Hello'
-        })
-        
+
+        response = await self.client.post(reverse('send_message'), {'message': 'Hello'})
+
         self.assertEqual(response.status_code, 400)
         response_data = json.loads(response.content)
         self.assertIn('error', response_data)
         self.assertEqual(response_data['error'], 'Conversation ID is required')
 
-    async def test_send_message_get_request(self):
+    async def test_send_message_get_request(self) -> None:
         """Test GET request to send_message returns method not allowed."""
         await self.asetUp()
         await sync_to_async(self.client.force_login)(self.user)
-        
+
         response = await self.client.get(reverse('send_message'))
-        
+
         self.assertEqual(response.status_code, 405)
         response_data = json.loads(response.content)
         self.assertIn('error', response_data)
 
     @patch('chat.views.ai_service')
-    async def test_send_message_ai_error(self, mock_ai_service):
+    async def test_send_message_ai_error(self, mock_ai_service: MagicMock) -> None:
         """Test handling AI service errors during message sending."""
         await self.asetUp()
         await sync_to_async(self.client.force_login)(self.user)
-        
+
         # Mock AI service to raise an exception
         mock_ai_service.generate_chat_response = AsyncMock(
             side_effect=Exception("AI service error")
         )
-        
-        response = await self.client.post(reverse('send_message'), {
-            'message': 'Hello, how are you?',
-            'conversation_id': str(self.conversation.id)
-        })
-        
+
+        response = await self.client.post(
+            reverse('send_message'),
+            {
+                'message': 'Hello, how are you?',
+                'conversation_id': str(self.conversation.id),
+            },
+        )
+
         self.assertEqual(response.status_code, 500)
         response_data = json.loads(response.content)
         self.assertIn('error', response_data)
         self.assertIn('AI service error', response_data['error'])
 
-    async def test_check_grammar_status_no_analysis(self):
+    async def test_check_grammar_status_no_analysis(self) -> None:
         """Test checking grammar status when no analysis exists yet."""
         await self.asetUp()
         await sync_to_async(self.client.force_login)(self.user)
-        
-        message = await ChatMessage.objects.acreate(
-            conversation=self.conversation,
-            message="Test message",
-            response="Test response"
-        )
-        
-        response = await self.client.get(
-            reverse('check_grammar_status', kwargs={'message_id': message.id})
-        )
-        
-        self.assertEqual(response.status_code, 200)
-        response_data = json.loads(response.content)
-        self.assertEqual(response_data['grammar_analysis'], '')
 
-    async def test_check_grammar_status_with_analysis(self):
-        """Test checking grammar status when analysis exists."""
-        await self.asetUp()
-        await sync_to_async(self.client.force_login)(self.user)
-        
         message = await ChatMessage.objects.acreate(
             conversation=self.conversation,
             message="Test message",
             response="Test response",
-            grammar_analysis="No issues found."
         )
-        
+
         response = await self.client.get(
             reverse('check_grammar_status', kwargs={'message_id': message.id})
         )
-        
+
+        self.assertEqual(response.status_code, 200)
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data['grammar_analysis'], '')
+
+    async def test_check_grammar_status_with_analysis(self) -> None:
+        """Test checking grammar status when analysis exists."""
+        await self.asetUp()
+        await sync_to_async(self.client.force_login)(self.user)
+
+        message = await ChatMessage.objects.acreate(
+            conversation=self.conversation,
+            message="Test message",
+            response="Test response",
+            grammar_analysis="No issues found.",
+        )
+
+        response = await self.client.get(
+            reverse('check_grammar_status', kwargs={'message_id': message.id})
+        )
+
         self.assertEqual(response.status_code, 200)
         response_data = json.loads(response.content)
         self.assertEqual(response_data['grammar_analysis'], 'No issues found.')
 
-    async def test_check_grammar_status_post_request(self):
+    async def test_check_grammar_status_post_request(self) -> None:
         """Test POST request to check_grammar_status returns method not allowed."""
         await self.asetUp()
         await sync_to_async(self.client.force_login)(self.user)
-        
+
         message = await ChatMessage.objects.acreate(
             conversation=self.conversation,
             message="Test message",
-            response="Test response"
+            response="Test response",
         )
-        
+
         response = await self.client.post(
             reverse('check_grammar_status', kwargs={'message_id': message.id})
         )
-        
+
         self.assertEqual(response.status_code, 405)
 
-    async def test_conversation_analysis_no_messages(self):
+    async def test_conversation_analysis_no_messages(self) -> None:
         """Test conversation analysis redirects when no messages exist."""
         await self.asetUp()
         await sync_to_async(self.client.force_login)(self.user)
-        
+
         response = await self.client.get(
-            reverse('conversation_analysis', kwargs={'conversation_id': self.conversation.id})
+            reverse(
+                'conversation_analysis',
+                kwargs={'conversation_id': self.conversation.id},
+            )
         )
-        
+
         self.assertEqual(response.status_code, 302)
         self.assertIn('/conversation/', response.url)
 
     @patch('chat.views.ai_service')
-    async def test_conversation_analysis_success(self, mock_ai_service):
+    async def test_conversation_analysis_success(
+        self, mock_ai_service: MagicMock
+    ) -> None:
         """Test successful conversation analysis with mocked AI service."""
         await self.asetUp()
         await sync_to_async(self.client.force_login)(self.user)
-        
+
         # Create some test messages
         await ChatMessage.objects.acreate(
             conversation=self.conversation,
             message="Hello, how are you?",
             response="I'm doing well, thank you!",
-            grammar_analysis="No issues found."
+            grammar_analysis="No issues found.",
         )
         await ChatMessage.objects.acreate(
             conversation=self.conversation,
             message="Can you help me with my English?",
             response="Of course! I'd be happy to help.",
-            grammar_analysis="Good grammar and spelling."
+            grammar_analysis="Good grammar and spelling.",
         )
-        
+
         # Mock the AI service
         mock_analysis = (
             "• Strengths: Clear communication, polite tone\n"
@@ -278,154 +285,169 @@ class AsyncChatViewsTest(TransactionTestCase):
             "• Recommendations: Continue practicing daily conversations"
         )
         mock_ai_service.analyze_conversation = AsyncMock(return_value=mock_analysis)
-        
+
         response = await self.client.get(
-            reverse('conversation_analysis', kwargs={'conversation_id': self.conversation.id})
+            reverse(
+                'conversation_analysis',
+                kwargs={'conversation_id': self.conversation.id},
+            )
         )
-        
+
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Clear communication")
         self.assertContains(response, "Continue practicing")
-        
+
         # Verify the AI service was called
         mock_ai_service.analyze_conversation.assert_called_once()
-        
+
         # Verify the report was saved
         report_count = await AfterActionReport.objects.filter(
             conversation=self.conversation
         ).acount()
         self.assertEqual(report_count, 1)
 
-    async def test_conversation_analysis_existing_report(self):
+    async def test_conversation_analysis_existing_report(self) -> None:
         """Test conversation analysis reuses existing report."""
         await self.asetUp()
         await sync_to_async(self.client.force_login)(self.user)
-        
+
         # Create a test message
         await ChatMessage.objects.acreate(
             conversation=self.conversation,
             message="Test message",
-            response="Test response"
+            response="Test response",
         )
-        
+
         # Create an existing report
         existing_analysis = "Existing analysis content"
         await AfterActionReport.objects.acreate(
-            conversation=self.conversation,
-            analysis_content=existing_analysis
+            conversation=self.conversation, analysis_content=existing_analysis
         )
-        
+
         response = await self.client.get(
-            reverse('conversation_analysis', kwargs={'conversation_id': self.conversation.id})
+            reverse(
+                'conversation_analysis',
+                kwargs={'conversation_id': self.conversation.id},
+            )
         )
-        
+
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, existing_analysis)
 
     @patch('chat.views.ai_service')
-    async def test_conversation_analysis_ai_error(self, mock_ai_service):
+    async def test_conversation_analysis_ai_error(
+        self, mock_ai_service: MagicMock
+    ) -> None:
         """Test conversation analysis handles AI service errors."""
         await self.asetUp()
         await sync_to_async(self.client.force_login)(self.user)
-        
+
         # Create a test message
         await ChatMessage.objects.acreate(
             conversation=self.conversation,
             message="Test message",
-            response="Test response"
+            response="Test response",
         )
-        
+
         # Mock AI service to raise an exception
         mock_ai_service.analyze_conversation = AsyncMock(
             return_value="⚠️ Failed to generate analysis: AI service error"
         )
-        
+
         response = await self.client.get(
-            reverse('conversation_analysis', kwargs={'conversation_id': self.conversation.id})
+            reverse(
+                'conversation_analysis',
+                kwargs={'conversation_id': self.conversation.id},
+            )
         )
-        
+
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Failed to generate analysis")
 
-    async def test_conversation_analysis_wrong_user(self):
+    async def test_conversation_analysis_wrong_user(self) -> None:
         """Test conversation analysis returns 404 for wrong user."""
         await self.asetUp()
         other_user = await User.objects.acreate_user(
-            username='otheruser',
-            password='testpass123'
+            username='otheruser', password='testpass123'
         )
         await sync_to_async(self.client.force_login)(other_user)
-        
+
         # Create a test message for the original user's conversation
         await ChatMessage.objects.acreate(
             conversation=self.conversation,
             message="Test message",
-            response="Test response"
+            response="Test response",
         )
-        
+
         response = await self.client.get(
-            reverse('conversation_analysis', kwargs={'conversation_id': self.conversation.id})
+            reverse(
+                'conversation_analysis',
+                kwargs={'conversation_id': self.conversation.id},
+            )
         )
-        
+
         self.assertEqual(response.status_code, 404)
 
 
 class AsyncGrammarAnalysisTest(TransactionTestCase):
     """Test async grammar analysis functionality."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data."""
         pass
-        
-    async def asetUp(self):
+
+    async def asetUp(self) -> None:
         """Set up async test data."""
         self.user = await User.objects.acreate_user(
-            username='testuser',
-            password='testpass123'
+            username='testuser', password='testpass123'
         )
         self.conversation = await Conversation.objects.acreate(user=self.user)
         self.message = await ChatMessage.objects.acreate(
             conversation=self.conversation,
             message="Test message with error's",
-            response="Test response"
+            response="Test response",
         )
 
     @patch('chat.views.ai_service')
-    async def test_analyze_grammar_async_success(self, mock_ai_service):
+    async def test_analyze_grammar_async_success(
+        self, mock_ai_service: MagicMock
+    ) -> None:
         """Test successful async grammar analysis."""
         await self.asetUp()
         from chat.views import analyze_grammar_async
-        
+
         mock_ai_service.analyze_grammar = AsyncMock(
             return_value="Found spelling error: error's should be errors"
         )
-        
+
         await analyze_grammar_async(self.message.id, self.message.message)
-        
+
         # Refresh the message from the database
         await self.message.arefresh_from_db()
-        
+
         self.assertEqual(
             self.message.grammar_analysis,
-            "Found spelling error: error's should be errors"
+            "Found spelling error: error's should be errors",
         )
         mock_ai_service.analyze_grammar.assert_called_once_with(self.message.message)
 
     @patch('chat.views.ai_service')
-    async def test_analyze_grammar_async_error(self, mock_ai_service):
+    async def test_analyze_grammar_async_error(
+        self, mock_ai_service: MagicMock
+    ) -> None:
         """Test grammar analysis handles errors gracefully."""
         await self.asetUp()
         from chat.views import analyze_grammar_async
-        
+
         mock_ai_service.analyze_grammar = AsyncMock(
             side_effect=Exception("AI service unavailable")
         )
-        
+
         await analyze_grammar_async(self.message.id, self.message.message)
-        
+
         # Refresh the message from the database
         await self.message.arefresh_from_db()
-        
+
         self.assertIn("Analysis failed", self.message.grammar_analysis)
         self.assertIn("AI service unavailable", self.message.grammar_analysis)
 
@@ -479,69 +501,74 @@ class AsyncGrammarAnalysisTest(TransactionTestCase):
 class AIServiceTest(TransactionTestCase):
     """Test AI service functionality with mocked agents."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data."""
         pass
-        
+
     @patch('chat.ai_service.Agent')
-    async def test_generate_chat_response(self, MockAgent):
+    async def test_generate_chat_response(self, MockAgent: MagicMock) -> None:
         """Test chat response generation with mocked agent."""
         mock_agent_instance = AsyncMock()
         mock_result = AsyncMock()
         mock_result.output = "Mocked AI response"
         mock_agent_instance.run.return_value = mock_result
         MockAgent.return_value = mock_agent_instance
-        
+
         # Create a fresh AI service instance for testing
         from chat.ai_service import AIService
+
         service = AIService()
         service.chat_agent = mock_agent_instance
-        
+
         result = await service.generate_chat_response("Hello")
-        
+
         self.assertEqual(result, "Mocked AI response")
         mock_agent_instance.run.assert_called_once_with("Hello")
 
     @patch('chat.ai_service.Agent')
-    async def test_analyze_grammar(self, MockAgent):
+    async def test_analyze_grammar(self, MockAgent: MagicMock) -> None:
         """Test grammar analysis with mocked agent."""
         mock_agent_instance = AsyncMock()
         mock_result = AsyncMock()
         mock_result.output = "Grammar looks good!"
         mock_agent_instance.run.return_value = mock_result
         MockAgent.return_value = mock_agent_instance
-        
+
         # Create a fresh AI service instance for testing
         from chat.ai_service import AIService
+
         service = AIService()
         service.grammar_agent = mock_agent_instance
-        
+
         result = await service.analyze_grammar("This is a test.")
-        
+
         self.assertEqual(result, "Grammar looks good!")
-        mock_agent_instance.run.assert_called_once_with('Text: """\nThis is a test.\n"""')
+        mock_agent_instance.run.assert_called_once_with(
+            'Text: """\nThis is a test.\n"""'
+        )
 
     @patch('chat.ai_service.Agent')
-    async def test_analyze_conversation(self, MockAgent):
+    async def test_analyze_conversation(self, MockAgent: MagicMock) -> None:
         """Test conversation analysis with mocked agent."""
         mock_agent_instance = AsyncMock()
         mock_result = AsyncMock()
         mock_result.output = "Overall analysis complete"
         mock_agent_instance.run.return_value = mock_result
         MockAgent.return_value = mock_agent_instance
-        
+
         # Create a fresh AI service instance for testing
         from chat.ai_service import AIService
+
         service = AIService()
         service.analysis_agent = mock_agent_instance
-        
+
         messages_data = [
             {'message': 'Hello', 'feedback': 'Good greeting'},
-            {'message': 'How are you?', 'feedback': 'Correct grammar'}
+            {'message': 'How are you?', 'feedback': 'Correct grammar'},
         ]
-        
+
         result = await service.analyze_conversation(messages_data)
-        
+
         self.assertEqual(result, "Overall analysis complete")
         mock_agent_instance.run.assert_called_once()
         call_args = mock_agent_instance.run.call_args[0][0]

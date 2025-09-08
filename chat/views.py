@@ -14,9 +14,6 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render, redirect, aget_object_or_404
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
-from asgiref.sync import sync_to_async
 
 from .models import ChatMessage, Conversation, AfterActionReport
 from .ai_service import ai_service
@@ -62,7 +59,9 @@ async def analyze_grammar_async(message_id: int, user_message: str) -> None:
     try:
         analysis_text = await ai_service.analyze_grammar(user_message)
         # Update only the grammar_analysis column to avoid race-conditions
-        await ChatMessage.objects.filter(pk=message_id).aupdate(grammar_analysis=analysis_text)
+        await ChatMessage.objects.filter(pk=message_id).aupdate(
+            grammar_analysis=analysis_text
+        )
     except Exception as exc:  # pragma: no cover – best-effort background task
         # In production you might log this.
         await ChatMessage.objects.filter(pk=message_id).aupdate(
@@ -71,7 +70,9 @@ async def analyze_grammar_async(message_id: int, user_message: str) -> None:
 
 
 @login_required  # type: ignore
-async def chat_view(request: HttpRequest, conversation_id: int | None = None) -> HttpResponse:
+async def chat_view(
+    request: HttpRequest, conversation_id: int | None = None
+) -> HttpResponse:
     """
     Render the main chat interface with message history.
 
@@ -88,7 +89,9 @@ async def chat_view(request: HttpRequest, conversation_id: int | None = None) ->
     conversation = await aget_object_or_404(
         Conversation, pk=conversation_id, user=request.user
     )
-    messages = [msg async for msg in conversation.messages.all()]  # ordering defined in Meta
+    messages = [
+        msg async for msg in conversation.messages.all()
+    ]  # ordering defined in Meta
 
     # Select a random conversation starter for new conversations
     conversation_starter = random.choice(CONVERSATION_STARTERS)
