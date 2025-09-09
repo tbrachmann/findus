@@ -1,6 +1,6 @@
 # findus – Chat with Gemini
 
-findus is a Django-powered chat application that integrates Google Gemini 2.5 Flash-Lite to deliver AI conversations and on-the-fly grammar feedback.
+findus is an **async Django-powered** chat application that integrates Google Gemini 2.5 Flash-Lite to deliver AI conversations and on-the-fly grammar feedback.
 Each conversation is stored separately, making it easy to revisit past chats, while a modern responsive interface keeps the experience pleasant on desktop and mobile.
 
 ---
@@ -9,9 +9,10 @@ Each conversation is stored separately, making it easy to revisit past chats, wh
 
 | Category | Details |
 |----------|---------|
-| **Gemini API integration** | Sends user prompts to Google Gemini 2.5 Flash-Lite and streams back answers. |
+| **Async Django architecture** | Built with Django's native async views and async ORM for superior performance and concurrency. |
+| **Gemini API integration** | Sends user prompts to Google Gemini 2.5 Flash-Lite using async HTTP calls. |
 | **Conversation management** | Each chat is grouped under a `Conversation` record with its own URL (`/conversation/<id>/`). |
-| **Grammar / spelling analysis** | Asynchronously calls Gemini a second time to analyse the user’s text and displays feedback next to the original bubble. |
+| **Grammar / spelling analysis** | Background grammar analysis using `asyncio.create_task()` for true non-blocking processing. |
 | **Responsive UI** | Flex-box chat layout, mobile-first design, dark-on-light colour scheme. |
 | **Real-time UX** | Typing indicator, automatic scrolling, grammar results appear without page refresh. |
 | **Code quality** | Pre-commit hooks run **Black**, **Flake8**, and **Mypy** on every commit. |
@@ -20,20 +21,43 @@ Each conversation is stored separately, making it easy to revisit past chats, wh
 
 ## ⚙️ Installation
 
+This project uses **UV** for fast dependency management and Python environment handling.
+
+### Prerequisites
+- Python ≥3.13
+- [UV](https://docs.astral.sh/uv/) - Install with: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+
+### Setup
 ```bash
 # 1. Clone repo
 git clone https://github.com/<your-org>/findus.git
 cd findus
 
-# 2. Install latest Python (≥3.13) e.g. via Homebrew
-brew install python
+# 2. Install Python (if needed) and sync dependencies
+# UV will automatically manage Python version and virtual environment
+uv sync
 
-# 3. Create & activate a virtualenv
-/opt/homebrew/bin/python3 -m venv venv
-source venv/bin/activate
+# Alternative: Install specific Python version with UV
+uv python install 3.13
+```
 
-# 4. Install dependencies
-pip install -r requirements.txt
+### UV Commands Reference
+```bash
+# Sync dependencies (equivalent to pip install -r requirements.txt)
+uv sync
+
+# Add new dependency
+uv add package-name
+
+# Add dev dependency  
+uv add --dev package-name
+
+# Run commands in the UV environment
+uv run python manage.py migrate
+uv run python manage.py runserver
+
+# Activate the UV-managed virtual environment (optional)
+source .venv/bin/activate
 ```
 
 ---
@@ -63,10 +87,14 @@ be committed to version control.
 
 ```bash
 # Run database migrations
-python manage.py migrate
+uv run python manage.py migrate
 
-# Start the development server
-python manage.py runserver
+# Start the async development server with ASGI
+uv run python manage.py runserver
+# Note: Django's development server automatically uses ASGI when async views are detected
+
+# Or start with uvicorn for better async performance (recommended)
+uv run uvicorn findus.asgi:application --reload --host 0.0.0.0 --port 8000
 ```
 
 Open http://127.0.0.1:8000/ – a new conversation is created automatically.
@@ -80,7 +108,7 @@ Use **+ New Conversation** in the header to start additional threads.
 
 ```bash
 # one-time install
-pre-commit install
+uv run pre-commit install
 ```
 
 On every commit the following run automatically:
@@ -92,25 +120,69 @@ On every commit the following run automatically:
 Run manually with:
 
 ```bash
-pre-commit run --all-files
+uv run pre-commit run --all-files
 ```
 
-### Running tests (placeholder)
+### Running tests
 
 ```bash
-pytest
+uv run python manage.py test
 ```
+
+The test suite includes comprehensive async tests covering:
+- Async view functionality
+- Background task processing
+- AI service integration (mocked)
+- Database operations with async ORM
 
 ---
 
 ## 🧰 Tech Stack
 
-- Python 3.13
-- Django 5.2
-- Google GenAI client (`google-genai`)
+- Python 3.13 managed with **UV** (fast dependency management)
+- **Django 5.2 with ASGI** (async views and ORM)
+- **Asyncio** for background task processing
+- Pydantic AI with Google GenAI client (`google-genai`)
 - HTML / CSS / Vanilla JS (no front-end framework)
-- SQLite (default) – easily swap for Postgres/MySQL in `settings.py`
+- SQLite (default) with `CONN_MAX_AGE: 0` for async compatibility
 - Pre-commit + Black + Flake8 + Mypy for code quality
+
+### Async Architecture Benefits
+
+- **Better Concurrency**: Handles many more concurrent requests without blocking threads
+- **Non-blocking Background Tasks**: Grammar analysis runs asynchronously using `asyncio.create_task()`
+- **Improved Performance**: Async ORM queries don't block the event loop
+- **Modern Django Patterns**: Uses Django's built-in async support rather than sync/async adapters
+
+---
+
+## 🚀 Deployment
+
+### ASGI Server Requirements
+
+Since this application uses Django's async views, it requires an **ASGI server** for deployment (not WSGI). Popular options include:
+
+```bash
+# Using Uvicorn (recommended for development/testing)
+uv add uvicorn
+uv run uvicorn findus.asgi:application --host 0.0.0.0 --port 8000
+
+# Using Daphne (Django's reference ASGI server)
+uv add daphne
+uv run daphne -b 0.0.0.0 -p 8000 findus.asgi:application
+
+# Using Gunicorn with Uvicorn workers (recommended for production)
+uv add gunicorn "uvicorn[standard]"
+uv run gunicorn findus.asgi:application -w 4 -k uvicorn.workers.UvicornWorker
+```
+
+### Production Considerations
+
+- Configure `ALLOWED_HOSTS` in settings.py
+- Set `DEBUG = False` for production
+- Use environment variables for `SECRET_KEY`, `GEMINI_API_KEY`, and `LOGFIRE_KEY`
+- Consider using PostgreSQL instead of SQLite for better async performance
+- The database is configured with `CONN_MAX_AGE: 0` for async compatibility
 
 ---
 

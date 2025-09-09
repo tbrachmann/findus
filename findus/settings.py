@@ -28,15 +28,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-)-d&ggax6&9*2(^4u7-00ltgk-o%g5=*rq_oip&@zsp1281!$='
+SECRET_KEY = os.getenv('SECRET_KEY', 'SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 # Explicit type annotation so static type-checkers (mypy, Pyright, etc.) know
 # the expected value type.
-ALLOWED_HOSTS: List[str] = ['testserver']
+ALLOWED_HOSTS: List[str] = ['testserver', 'localhost', '127.0.0.1', '0.0.0.0']
 
 
 # Application definition
@@ -82,6 +81,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'findus.wsgi.application'
+ASGI_APPLICATION = 'findus.asgi.application'
 
 
 # Database
@@ -91,6 +91,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        'CONN_MAX_AGE': 0,  # Disable persistent connections for async
     }
 }
 

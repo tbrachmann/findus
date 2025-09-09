@@ -64,7 +64,7 @@ class AIService:
         """
         result = await self.chat_agent.run(user_message)
 
-        return str(result.data)
+        return str(result.output)
 
     async def analyze_grammar(self, text: str) -> str:
         """
@@ -78,7 +78,7 @@ class AIService:
         """
         try:
             result = await self.grammar_agent.run(f'Text: """\n{text}\n"""')
-            return str(result.data)
+            return str(result.output)
         except AgentRunError as e:
             return f"Analysis failed: {e}"
 
@@ -108,7 +108,7 @@ class AIService:
             prompt = "".join(prompt_parts)
 
             result = await self.analysis_agent.run(prompt)
-            return str(result.data)
+            return str(result.output)
 
         except AgentRunError as e:
             return f"⚠️ Failed to generate analysis: {e}"
