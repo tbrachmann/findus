@@ -90,8 +90,8 @@ async def chat_view(
         Conversation, pk=conversation_id, user=request.user
     )
     messages = [
-        msg async for msg in conversation.messages.all()
-    ]  # ordering defined in Meta
+        msg async for msg in conversation.messages.select_related('conversation').all()
+    ]
 
     # Select a random conversation starter for new conversations
     conversation_starter = random.choice(CONVERSATION_STARTERS)
@@ -158,14 +158,14 @@ async def send_message(request: HttpRequest) -> JsonResponse:
 
         # Update the conversation's last updated timestamp
         conversation.updated_at = timezone.now()
-        
+
         # --------------------------------------------------------------
         # Run conversation save and grammar analysis concurrently
         # This ensures the grammar analysis actually completes
         # --------------------------------------------------------------
         await asyncio.gather(
             conversation.asave(update_fields=['updated_at']),
-            analyze_grammar_async(chat_message.id, user_message)
+            analyze_grammar_async(chat_message.id, user_message),
         )
 
         # Return the response as JSON
@@ -270,9 +270,11 @@ async def conversation_analysis(
         "the grammar feedback they already received.\n\n",
     ]
 
+    messages_data = []
     async for msg in messages_qs:
         feedback = msg.grammar_analysis or "No feedback available."
         prompt_parts.append(f"User: {msg.message}\nFeedback: {feedback}\n---\n")
+        messages_data.append({'message': msg.message, 'feedback': msg.grammar_analysis})
 
     prompt_parts.append(
         "\nBased on the entire dialogue:\n"
@@ -285,9 +287,6 @@ async def conversation_analysis(
     # ------------------------------------------------------------------ #
     # 3. Call AI service for conversation analysis                       #
     # ------------------------------------------------------------------ #
-    messages_data = []
-    async for msg in messages_qs:
-        messages_data.append({'message': msg.message, 'feedback': msg.grammar_analysis})
 
     analysis_text: str = await ai_service.analyze_conversation(messages_data)
 
