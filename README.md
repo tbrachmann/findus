@@ -21,20 +21,43 @@ Each conversation is stored separately, making it easy to revisit past chats, wh
 
 ## ⚙️ Installation
 
+This project uses **UV** for fast dependency management and Python environment handling.
+
+### Prerequisites
+- Python ≥3.13
+- [UV](https://docs.astral.sh/uv/) - Install with: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+
+### Setup
 ```bash
 # 1. Clone repo
 git clone https://github.com/<your-org>/findus.git
 cd findus
 
-# 2. Install latest Python (≥3.13) e.g. via Homebrew
-brew install python
+# 2. Install Python (if needed) and sync dependencies
+# UV will automatically manage Python version and virtual environment
+uv sync
 
-# 3. Create & activate a virtualenv
-/opt/homebrew/bin/python3 -m venv venv
-source venv/bin/activate
+# Alternative: Install specific Python version with UV
+uv python install 3.13
+```
 
-# 4. Install dependencies
-pip install -r requirements.txt
+### UV Commands Reference
+```bash
+# Sync dependencies (equivalent to pip install -r requirements.txt)
+uv sync
+
+# Add new dependency
+uv add package-name
+
+# Add dev dependency  
+uv add --dev package-name
+
+# Run commands in the UV environment
+uv run python manage.py migrate
+uv run python manage.py runserver
+
+# Activate the UV-managed virtual environment (optional)
+source .venv/bin/activate
 ```
 
 ---
@@ -64,10 +87,10 @@ be committed to version control.
 
 ```bash
 # Run database migrations
-python manage.py migrate
+uv run python manage.py migrate
 
 # Start the async development server with ASGI
-python manage.py runserver
+uv run python manage.py runserver
 # Note: Django's development server automatically uses ASGI when async views are detected
 
 # Or start with uvicorn for better async performance (recommended)
@@ -85,7 +108,7 @@ Use **+ New Conversation** in the header to start additional threads.
 
 ```bash
 # one-time install
-pre-commit install
+uv run pre-commit install
 ```
 
 On every commit the following run automatically:
@@ -97,13 +120,13 @@ On every commit the following run automatically:
 Run manually with:
 
 ```bash
-pre-commit run --all-files
+uv run pre-commit run --all-files
 ```
 
 ### Running tests
 
 ```bash
-python manage.py test
+uv run python manage.py test
 ```
 
 The test suite includes comprehensive async tests covering:
@@ -116,7 +139,7 @@ The test suite includes comprehensive async tests covering:
 
 ## 🧰 Tech Stack
 
-- Python 3.13
+- Python 3.13 managed with **UV** (fast dependency management)
 - **Django 5.2 with ASGI** (async views and ORM)
 - **Asyncio** for background task processing
 - Pydantic AI with Google GenAI client (`google-genai`)
@@ -145,12 +168,12 @@ uv add uvicorn
 uv run uvicorn findus.asgi:application --host 0.0.0.0 --port 8000
 
 # Using Daphne (Django's reference ASGI server)
-pip install daphne
-daphne -b 0.0.0.0 -p 8000 findus.asgi:application
+uv add daphne
+uv run daphne -b 0.0.0.0 -p 8000 findus.asgi:application
 
 # Using Gunicorn with Uvicorn workers (recommended for production)
-pip install gunicorn uvicorn[standard]
-gunicorn findus.asgi:application -w 4 -k uvicorn.workers.UvicornWorker
+uv add gunicorn "uvicorn[standard]"
+uv run gunicorn findus.asgi:application -w 4 -k uvicorn.workers.UvicornWorker
 ```
 
 ### Production Considerations
