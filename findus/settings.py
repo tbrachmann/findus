@@ -36,7 +36,7 @@ DEBUG = True
 
 # Explicit type annotation so static type-checkers (mypy, Pyright, etc.) know
 # the expected value type.
-ALLOWED_HOSTS: List[str] = ['testserver']
+ALLOWED_HOSTS: List[str] = ['testserver', 'localhost', '127.0.0.1', '0.0.0.0']
 
 
 # Application definition

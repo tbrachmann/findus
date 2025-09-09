@@ -69,6 +69,9 @@ python manage.py migrate
 # Start the async development server with ASGI
 python manage.py runserver
 # Note: Django's development server automatically uses ASGI when async views are detected
+
+# Or start with uvicorn for better async performance (recommended)
+uv run uvicorn findus.asgi:application --reload --host 0.0.0.0 --port 8000
 ```
 
 Open http://127.0.0.1:8000/ – a new conversation is created automatically.
@@ -138,8 +141,8 @@ Since this application uses Django's async views, it requires an **ASGI server**
 
 ```bash
 # Using Uvicorn (recommended for development/testing)
-pip install uvicorn
-uvicorn findus.asgi:application --host 0.0.0.0 --port 8000
+uv add uvicorn
+uv run uvicorn findus.asgi:application --host 0.0.0.0 --port 8000
 
 # Using Daphne (Django's reference ASGI server)
 pip install daphne

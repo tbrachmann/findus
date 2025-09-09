@@ -431,6 +431,7 @@ dependencies = [
     { name = "logfire", extra = ["django", "sqlite3"] },
     { name = "pydantic-ai" },
     { name = "python-dotenv" },
+    { name = "uvicorn" },
 ]
 
 [package.optional-dependencies]
@@ -456,6 +457,7 @@ requires-dist = [
     { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "pydantic-ai", specifier = ">=1.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "uvicorn", specifier = ">=0.35.0" },
 ]
 provides-extras = ["dev"]
 
