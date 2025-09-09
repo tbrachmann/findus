@@ -13,8 +13,10 @@ urlpatterns = [
     path('login/', auth_views.login_view, name='login'),
     path('logout/', auth_views.logout_view, name='logout'),
     path('register/', auth_views.register_view, name='register'),
-    # Landing page -> start a fresh conversation
-    path('', views.new_conversation, name='home'),
+    # Landing page -> language selection
+    path('', views.language_selection, name='home'),
+    # Language selection page
+    path('select-language/', views.language_selection, name='language_selection'),
     # Explicit endpoint to begin a new conversation
     path('new/', views.new_conversation, name='new_conversation'),
     # Chat interface for a given conversation id

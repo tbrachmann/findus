@@ -26,26 +26,64 @@ from .ai_service import ai_service
 F = TypeVar('F', bound=Callable[..., Any])
 
 # Conversation starter prompts - elementary language textbook style
-CONVERSATION_STARTERS = [
-    "Tell me about your family?",
-    "What did you do today?",
-    "What do you like doing for fun?",
-    "What did you do this weekend?",
-    "What's your favorite food?",
-    "Do you have any pets?",
-    "What's your favorite season and why?",
-    "What do you like to do after school or work?",
-    "Tell me about your best friend?",
-    "What's your favorite holiday?",
-    "What kind of music do you like?",
-    "Do you play any sports?",
-    "What's your favorite subject in school?",
-    "Tell me about your hometown?",
-    "What are your hobbies?",
-]
+CONVERSATION_STARTERS = {
+    'en': [
+        "Tell me about your family?",
+        "What did you do today?",
+        "What do you like doing for fun?",
+        "What did you do this weekend?",
+        "What's your favorite food?",
+        "Do you have any pets?",
+        "What's your favorite season and why?",
+        "What do you like to do after school or work?",
+        "Tell me about your best friend?",
+        "What's your favorite holiday?",
+        "What kind of music do you like?",
+        "Do you play any sports?",
+        "What's your favorite subject in school?",
+        "Tell me about your hometown?",
+        "What are your hobbies?",
+    ],
+    'es': [
+        "Háblame de tu familia?",
+        "¿Qué hiciste hoy?",
+        "¿Qué te gusta hacer por diversión?",
+        "¿Qué hiciste este fin de semana?",
+        "¿Cuál es tu comida favorita?",
+        "¿Tienes mascotas?",
+        "¿Cuál es tu estación favorita y por qué?",
+        "¿Qué te gusta hacer después del trabajo o la escuela?",
+        "Háblame de tu mejor amigo?",
+        "¿Cuál es tu día festivo favorito?",
+        "¿Qué tipo de música te gusta?",
+        "¿Practicas algún deporte?",
+        "¿Cuál es tu materia favorita en la escuela?",
+        "Háblame de tu ciudad natal?",
+        "¿Cuáles son tus pasatiempos?",
+    ],
+    'de': [
+        "Erzähl mir von deiner Familie?",
+        "Was hast du heute gemacht?",
+        "Was machst du gerne zum Spaß?",
+        "Was hast du am Wochenende gemacht?",
+        "Was ist dein Lieblingsessen?",
+        "Hast du Haustiere?",
+        "Was ist deine Lieblingsjahreszeit und warum?",
+        "Was machst du gerne nach der Schule oder Arbeit?",
+        "Erzähl mir von deinem besten Freund?",
+        "Was ist dein Lieblingsfeiertag?",
+        "Welche Art von Musik magst du?",
+        "Treibst du Sport?",
+        "Was ist dein Lieblingsfach in der Schule?",
+        "Erzähl mir von deiner Heimatstadt?",
+        "Was sind deine Hobbys?",
+    ],
+}
 
 
-async def analyze_grammar_async(message_id: int, user_message: str) -> None:
+async def analyze_grammar_async(
+    message_id: int, user_message: str, language_code: str = 'en'
+) -> None:
     """
     Async grammar analysis using Django's async ORM.
 
@@ -55,9 +93,10 @@ async def analyze_grammar_async(message_id: int, user_message: str) -> None:
     Args:
         message_id: Primary-key of the ``ChatMessage`` row to update
         user_message: The original user prompt
+        language_code: Language code for the conversation
     """
     try:
-        analysis_text = await ai_service.analyze_grammar(user_message)
+        analysis_text = await ai_service.analyze_grammar(user_message, language_code)
         # Update only the grammar_analysis column to avoid race-conditions
         await ChatMessage.objects.filter(pk=message_id).aupdate(
             grammar_analysis=analysis_text
@@ -94,7 +133,10 @@ async def chat_view(
     ]
 
     # Select a random conversation starter for new conversations
-    conversation_starter = random.choice(CONVERSATION_STARTERS)
+    starters = CONVERSATION_STARTERS.get(
+        conversation.language, CONVERSATION_STARTERS['en']
+    )
+    conversation_starter = random.choice(starters)
 
     return render(
         request,
@@ -108,9 +150,34 @@ async def chat_view(
 
 
 @login_required  # type: ignore
+async def language_selection(request: HttpRequest) -> HttpResponse:
+    """Display language selection page for new conversations."""
+    user = await request.auser()
+
+    return render(request, "chat/language_selection.html", {'user': user})
+
+
+@login_required  # type: ignore
 async def new_conversation(request: HttpRequest) -> HttpResponse:
-    """Create a new conversation and redirect to its chat view."""
-    convo = await Conversation.objects.acreate(user=request.user)
+    """Create a new conversation with selected language and redirect to its chat view."""
+    # Get languages from POST or default to English
+    language = request.POST.get('language', 'en') if request.method == 'POST' else 'en'
+    analysis_language = (
+        request.POST.get('analysis_language', 'en')
+        if request.method == 'POST'
+        else 'en'
+    )
+
+    # Validate language choices
+    valid_languages = dict(Conversation.LANGUAGE_CHOICES).keys()
+    if language not in valid_languages:
+        language = 'en'
+    if analysis_language not in valid_languages:
+        analysis_language = 'en'
+
+    convo = await Conversation.objects.acreate(
+        user=request.user, language=language, analysis_language=analysis_language
+    )
     return redirect(reverse("chat", args=[convo.id]))
 
 
@@ -149,7 +216,9 @@ async def send_message(request: HttpRequest) -> JsonResponse:
         # 2. This automatically logs input/output to Logfire for observability
         # ------------------------------------------------------------------
 
-        ai_response = await ai_service.generate_chat_response(user_message)
+        ai_response = await ai_service.generate_chat_response(
+            user_message, conversation.language
+        )
 
         # Save the message and response to the database with conversation
         chat_message = await ChatMessage.objects.acreate(
@@ -165,7 +234,9 @@ async def send_message(request: HttpRequest) -> JsonResponse:
         # --------------------------------------------------------------
         await asyncio.gather(
             conversation.asave(update_fields=['updated_at']),
-            analyze_grammar_async(chat_message.id, user_message),
+            analyze_grammar_async(
+                chat_message.id, user_message, conversation.analysis_language
+            ),
         )
 
         # Return the response as JSON
@@ -261,34 +332,19 @@ async def conversation_analysis(
         )
 
     # ------------------------------------------------------------------ #
-    # 2. Build prompt for Gemini                                         #
+    # 2. Build messages data for analysis                                #
     # ------------------------------------------------------------------ #
-    prompt_parts: list[str] = [
-        "You are an experienced English teacher creating a short "
-        "after-action report for your student.\n",
-        "Below is the full conversation in pairs of user text followed by "
-        "the grammar feedback they already received.\n\n",
-    ]
-
     messages_data = []
     async for msg in messages_qs:
-        feedback = msg.grammar_analysis or "No feedback available."
-        prompt_parts.append(f"User: {msg.message}\nFeedback: {feedback}\n---\n")
         messages_data.append({'message': msg.message, 'feedback': msg.grammar_analysis})
-
-    prompt_parts.append(
-        "\nBased on the entire dialogue:\n"
-        "• Identify recurring grammar / spelling issues.\n"
-        "• Highlight their strengths.\n"
-        "• Provide 3-5 concrete exercises or recommendations to improve.\n"
-        "Respond in concise bullet-points."
-    )
 
     # ------------------------------------------------------------------ #
     # 3. Call AI service for conversation analysis                       #
     # ------------------------------------------------------------------ #
 
-    analysis_text: str = await ai_service.analyze_conversation(messages_data)
+    analysis_text: str = await ai_service.analyze_conversation(
+        messages_data, conversation.analysis_language
+    )
 
     # ------------------------------------------------------------------ #
     # 4. Persist after-action report                                     #

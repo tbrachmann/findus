@@ -13,6 +13,12 @@ from django.contrib.auth.models import User
 class Conversation(models.Model):
     """Represents a single chat thread that groups many ChatMessage rows."""
 
+    LANGUAGE_CHOICES = [
+        ('en', 'English'),
+        ('es', 'Spanish'),
+        ('de', 'German'),
+    ]
+
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -23,6 +29,18 @@ class Conversation(models.Model):
         max_length=255,
         default="New Conversation",
         help_text="Conversation title (can be renamed later).",
+    )
+    language = models.CharField(
+        max_length=2,
+        choices=LANGUAGE_CHOICES,
+        default='en',
+        help_text="Language for this conversation",
+    )
+    analysis_language = models.CharField(
+        max_length=2,
+        choices=LANGUAGE_CHOICES,
+        default='en',
+        help_text="Language for grammar analysis feedback",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

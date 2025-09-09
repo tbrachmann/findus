@@ -178,6 +178,7 @@ logfire.configure(
 
 logfire.instrument_django()
 logfire.instrument_sqlite3()
+logfire.instrument_pydantic_ai()
 
 # --------------------------------------------------------------------------- #
 # Django-Extensions configuration                                             #

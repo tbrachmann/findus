@@ -27,34 +27,46 @@ class AIService:
             system_prompt="You are a helpful AI assistant. Provide clear, concise responses.",
         )
 
-        # Agent for grammar analysis
-        self.grammar_agent = Agent(
-            model=self.model,
-            system_prompt=(
-                "You are an English teacher analyzing text for grammatical errors "
-                "and spelling mistakes. Provide brief, helpful feedback. If there "
-                "are no issues, respond with 'No issues found.'"
-            ),
+    def _get_language_name(self, language_code: str) -> str:
+        """Convert language code to language name."""
+        language_map = {'en': 'English', 'es': 'Spanish', 'de': 'German'}
+        return language_map.get(language_code, 'English')
+
+    def _create_grammar_agent(self, language_code: str) -> Agent:
+        """Create a grammar analysis agent for the specified language."""
+        language_name = self._get_language_name(language_code)
+
+        system_prompt = (
+            f"You are a {language_name} teacher analyzing text for grammatical errors "
+            f"and spelling mistakes. Provide brief, helpful feedback in {language_name}. "
+            f"If there are no issues, respond with 'No issues found' in {language_name}."
         )
 
-        # Agent for conversation analysis
-        self.analysis_agent = Agent(
-            model=self.model,
-            system_prompt=(
-                "You are an experienced English teacher creating a short "
-                "after-action report for your student. Identify recurring "
-                "grammar/spelling issues, highlight strengths, and provide "
-                "3-5 concrete exercises or recommendations to improve. "
-                "Respond in concise bullet-points."
-            ),
+        return Agent(model=self.model, system_prompt=system_prompt)
+
+    def _create_analysis_agent(self, language_code: str) -> Agent:
+        """Create a conversation analysis agent for the specified language."""
+        language_name = self._get_language_name(language_code)
+
+        system_prompt = (
+            f"You are an experienced {language_name} teacher creating a short "
+            f"after-action report for your student. Identify recurring "
+            f"grammar/spelling issues, highlight strengths, and provide "
+            f"3-5 concrete exercises or recommendations to improve. "
+            f"Respond in concise bullet-points in {language_name}."
         )
 
-    async def generate_chat_response(self, user_message: str) -> str:
+        return Agent(model=self.model, system_prompt=system_prompt)
+
+    async def generate_chat_response(
+        self, user_message: str, language_code: str = 'en'
+    ) -> str:
         """
         Generate a chat response using Pydantic AI with Logfire tracking.
 
         Args:
             user_message: The user's input message
+            language_code: Language code for the conversation (en, es, de)
 
         Returns:
             AI response text
@@ -62,32 +74,47 @@ class AIService:
         Raises:
             AgentRunError: If the AI model fails to respond
         """
-        result = await self.chat_agent.run(user_message)
+        language_name = self._get_language_name(language_code)
 
+        # Create a language-specific chat agent
+        chat_agent = Agent(
+            model=self.model,
+            system_prompt=(
+                f"You are a helpful AI assistant. Respond in {language_name}. "
+                "Provide clear, concise responses."
+            ),
+        )
+
+        result = await chat_agent.run(user_message)
         return str(result.output)
 
-    async def analyze_grammar(self, text: str) -> str:
+    async def analyze_grammar(self, text: str, language_code: str = 'en') -> str:
         """
         Analyze text for grammar and spelling issues.
 
         Args:
             text: The text to analyze
+            language_code: Language code for the analysis (en, es, de)
 
         Returns:
             Grammar analysis feedback
         """
         try:
-            result = await self.grammar_agent.run(f'Text: """\n{text}\n"""')
+            grammar_agent = self._create_grammar_agent(language_code)
+            result = await grammar_agent.run(f'Text: """\n{text}\n"""')
             return str(result.output)
         except AgentRunError as e:
             return f"Analysis failed: {e}"
 
-    async def analyze_conversation(self, messages_data: list[dict]) -> str:
+    async def analyze_conversation(
+        self, messages_data: list[dict], language_code: str = 'en'
+    ) -> str:
         """
         Generate an after-action report for a conversation.
 
         Args:
             messages_data: List of dicts with 'message' and 'feedback' keys
+            language_code: Language code for the analysis (en, es, de)
 
         Returns:
             Conversation analysis text
@@ -107,23 +134,28 @@ class AIService:
 
             prompt = "".join(prompt_parts)
 
-            result = await self.analysis_agent.run(prompt)
+            analysis_agent = self._create_analysis_agent(language_code)
+            result = await analysis_agent.run(prompt)
             return str(result.output)
 
         except AgentRunError as e:
             return f"⚠️ Failed to generate analysis: {e}"
 
-    def generate_chat_response_sync(self, user_message: str) -> str:
+    def generate_chat_response_sync(
+        self, user_message: str, language_code: str = 'en'
+    ) -> str:
         """Generate chat response synchronously."""
-        return asyncio.run(self.generate_chat_response(user_message))
+        return asyncio.run(self.generate_chat_response(user_message, language_code))
 
-    def analyze_grammar_sync(self, text: str) -> str:
+    def analyze_grammar_sync(self, text: str, language_code: str = 'en') -> str:
         """Analyze grammar synchronously."""
-        return asyncio.run(self.analyze_grammar(text))
+        return asyncio.run(self.analyze_grammar(text, language_code))
 
-    def analyze_conversation_sync(self, messages_data: list[dict]) -> str:
+    def analyze_conversation_sync(
+        self, messages_data: list[dict], language_code: str = 'en'
+    ) -> str:
         """Analyze conversation synchronously."""
-        return asyncio.run(self.analyze_conversation(messages_data))
+        return asyncio.run(self.analyze_conversation(messages_data, language_code))
 
 
 # Global AI service instance
