@@ -1,6 +1,6 @@
 # findus – Chat with Gemini
 
-findus is a Django-powered chat application that integrates Google Gemini 2.5 Flash-Lite to deliver AI conversations and on-the-fly grammar feedback.
+findus is an **async Django-powered** chat application that integrates Google Gemini 2.5 Flash-Lite to deliver AI conversations and on-the-fly grammar feedback.
 Each conversation is stored separately, making it easy to revisit past chats, while a modern responsive interface keeps the experience pleasant on desktop and mobile.
 
 ---
@@ -9,9 +9,10 @@ Each conversation is stored separately, making it easy to revisit past chats, wh
 
 | Category | Details |
 |----------|---------|
-| **Gemini API integration** | Sends user prompts to Google Gemini 2.5 Flash-Lite and streams back answers. |
+| **Async Django architecture** | Built with Django's native async views and async ORM for superior performance and concurrency. |
+| **Gemini API integration** | Sends user prompts to Google Gemini 2.5 Flash-Lite using async HTTP calls. |
 | **Conversation management** | Each chat is grouped under a `Conversation` record with its own URL (`/conversation/<id>/`). |
-| **Grammar / spelling analysis** | Asynchronously calls Gemini a second time to analyse the user’s text and displays feedback next to the original bubble. |
+| **Grammar / spelling analysis** | Background grammar analysis using `asyncio.create_task()` for true non-blocking processing. |
 | **Responsive UI** | Flex-box chat layout, mobile-first design, dark-on-light colour scheme. |
 | **Real-time UX** | Typing indicator, automatic scrolling, grammar results appear without page refresh. |
 | **Code quality** | Pre-commit hooks run **Black**, **Flake8**, and **Mypy** on every commit. |
@@ -65,8 +66,9 @@ be committed to version control.
 # Run database migrations
 python manage.py migrate
 
-# Start the development server
+# Start the async development server with ASGI
 python manage.py runserver
+# Note: Django's development server automatically uses ASGI when async views are detected
 ```
 
 Open http://127.0.0.1:8000/ – a new conversation is created automatically.
@@ -95,22 +97,66 @@ Run manually with:
 pre-commit run --all-files
 ```
 
-### Running tests (placeholder)
+### Running tests
 
 ```bash
-pytest
+python manage.py test
 ```
+
+The test suite includes comprehensive async tests covering:
+- Async view functionality
+- Background task processing
+- AI service integration (mocked)
+- Database operations with async ORM
 
 ---
 
 ## 🧰 Tech Stack
 
 - Python 3.13
-- Django 5.2
-- Google GenAI client (`google-genai`)
+- **Django 5.2 with ASGI** (async views and ORM)
+- **Asyncio** for background task processing
+- Pydantic AI with Google GenAI client (`google-genai`)
 - HTML / CSS / Vanilla JS (no front-end framework)
-- SQLite (default) – easily swap for Postgres/MySQL in `settings.py`
+- SQLite (default) with `CONN_MAX_AGE: 0` for async compatibility
 - Pre-commit + Black + Flake8 + Mypy for code quality
+
+### Async Architecture Benefits
+
+- **Better Concurrency**: Handles many more concurrent requests without blocking threads
+- **Non-blocking Background Tasks**: Grammar analysis runs asynchronously using `asyncio.create_task()`
+- **Improved Performance**: Async ORM queries don't block the event loop
+- **Modern Django Patterns**: Uses Django's built-in async support rather than sync/async adapters
+
+---
+
+## 🚀 Deployment
+
+### ASGI Server Requirements
+
+Since this application uses Django's async views, it requires an **ASGI server** for deployment (not WSGI). Popular options include:
+
+```bash
+# Using Uvicorn (recommended for development/testing)
+pip install uvicorn
+uvicorn findus.asgi:application --host 0.0.0.0 --port 8000
+
+# Using Daphne (Django's reference ASGI server)
+pip install daphne
+daphne -b 0.0.0.0 -p 8000 findus.asgi:application
+
+# Using Gunicorn with Uvicorn workers (recommended for production)
+pip install gunicorn uvicorn[standard]
+gunicorn findus.asgi:application -w 4 -k uvicorn.workers.UvicornWorker
+```
+
+### Production Considerations
+
+- Configure `ALLOWED_HOSTS` in settings.py
+- Set `DEBUG = False` for production
+- Use environment variables for `SECRET_KEY`, `GEMINI_API_KEY`, and `LOGFIRE_KEY`
+- Consider using PostgreSQL instead of SQLite for better async performance
+- The database is configured with `CONN_MAX_AGE: 0` for async compatibility
 
 ---
 
