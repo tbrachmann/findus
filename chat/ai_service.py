@@ -55,14 +55,19 @@ class AIService:
         return Agent(model=self.model, system_prompt=system_prompt)
 
     async def generate_chat_response(
-        self, user_message: str, language_code: str = 'en'
+        self,
+        user_message: str,
+        language_code: str = 'en',
+        conversation_history: list[dict] | None = None,
     ) -> str:
         """
-        Generate a chat response using Pydantic AI with Logfire tracking.
+        Generate a chat response using Pydantic AI with conversation memory.
 
         Args:
             user_message: The user's input message
             language_code: Language code for the conversation (en, es, de)
+            conversation_history: Previous messages in format
+                [{'role': 'user', 'content': '...'}, ...]
 
         Returns:
             AI response text
@@ -81,7 +86,33 @@ class AIService:
             ),
         )
 
-        result = await chat_agent.run(user_message)
+        # If we have conversation history, run with context
+        if conversation_history:
+            # Build message sequence for Pydantic AI
+            from pydantic_ai.messages import (
+                ModelRequest,
+                ModelResponse,
+                UserPromptPart,
+                TextPart,
+            )
+
+            messages = []
+            for msg in conversation_history:
+                if msg['role'] == 'user':
+                    messages.append(
+                        ModelRequest(parts=[UserPromptPart(content=msg['content'])])
+                    )
+                elif msg['role'] == 'assistant':
+                    messages.append(
+                        ModelResponse(parts=[TextPart(content=msg['content'])])
+                    )
+
+            # Run with conversation history and current message
+            result = await chat_agent.run(user_message, message_history=messages)
+        else:
+            # First message in conversation - no history
+            result = await chat_agent.run(user_message)
+
         return str(result.output)
 
     async def analyze_grammar(self, text: str, language_code: str = 'en') -> str:

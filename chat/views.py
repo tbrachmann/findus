@@ -213,12 +213,24 @@ async def send_message(request: HttpRequest) -> JsonResponse:
         )
 
         # ------------------------------------------------------------------
-        # 1. Use Pydantic AI service to generate response with Logfire tracking
-        # 2. This automatically logs input/output to Logfire for observability
+        # 1. Build conversation history for memory
+        # ------------------------------------------------------------------
+        conversation_history = []
+        async for msg in conversation.messages.all().order_by('created_at'):
+            conversation_history.extend(
+                [
+                    {'role': 'user', 'content': msg.message},
+                    {'role': 'assistant', 'content': msg.response},
+                ]
+            )
+
+        # ------------------------------------------------------------------
+        # 2. Use Pydantic AI service to generate response with conversation memory
+        # 3. This automatically logs input/output to Logfire for observability
         # ------------------------------------------------------------------
 
         ai_response = await ai_service.generate_chat_response(
-            user_message, conversation.language
+            user_message, conversation.language, conversation_history
         )
 
         # Save the message and response to the database with conversation

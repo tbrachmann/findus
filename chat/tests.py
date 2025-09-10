@@ -112,9 +112,11 @@ class AsyncChatViewsTest(TransactionTestCase):
         self.assertIn('timestamp', response_data)
         self.assertIn('message_id', response_data)
 
-        # Verify the AI service was called with conversation language
+        # Verify the AI service was called with conversation language and history
         mock_ai_service.generate_chat_response.assert_called_once_with(
-            'Hello, how are you?', 'en'  # default language
+            'Hello, how are you?',
+            'en',
+            [],  # default language, empty history for first message
         )
 
         # Verify the message was saved
@@ -993,9 +995,9 @@ class AsyncLanguageSpecificAIServiceTest(TransactionTestCase):
 
         self.assertEqual(response.status_code, 200)
 
-        # Verify AI service was called with Spanish language
+        # Verify AI service was called with Spanish language and empty history
         mock_ai_service.generate_chat_response.assert_called_once_with(
-            'Hola, ¿cómo estás?', 'es'
+            'Hola, ¿cómo estás?', 'es', []
         )
 
     @patch('chat.views.ai_service')
@@ -1063,9 +1065,9 @@ class AsyncLanguageSpecificAIServiceTest(TransactionTestCase):
 
         self.assertEqual(response.status_code, 200)
 
-        # Verify chat response was called with German (conversation language)
+        # Verify chat response was called with German (conversation language) and empty history
         mock_ai_service.generate_chat_response.assert_called_once_with(
-            'Wie geht es dir?', 'de'
+            'Wie geht es dir?', 'de', []
         )
 
         # Verify grammar analysis was called with English (analysis language)
@@ -1118,6 +1120,248 @@ class AsyncLanguageSpecificAIServiceTest(TransactionTestCase):
         else:
             # Keyword argument
             self.assertEqual(call_args[1].get('language_code'), 'en')
+
+
+class ConversationMemoryTest(TransactionTestCase):
+    """Test conversation memory functionality using Pydantic AI conversation history."""
+
+    def setUp(self) -> None:
+        """Set up test data."""
+        self.client = AsyncClient()
+
+    async def asetUp(self) -> None:
+        """Set up async test data."""
+        self.user = await User.objects.acreate_user(
+            username='testuser', password='testpass123', email='test@example.com'
+        )
+        self.conversation = await Conversation.objects.acreate(
+            user=self.user, title='Test Conversation'
+        )
+
+    @patch('chat.views.ai_service')
+    async def test_first_message_no_history(self, mock_ai_service: MagicMock) -> None:
+        """Test that first message in conversation has no history."""
+        await self.asetUp()
+        await sync_to_async(self.client.force_login)(self.user)
+
+        mock_ai_service.generate_chat_response = AsyncMock(
+            return_value="Hello! Nice to meet you."
+        )
+        mock_ai_service.analyze_grammar = AsyncMock(return_value="No issues found.")
+
+        response = await self.client.post(
+            reverse('send_message'),
+            {
+                'message': 'Hi there!',
+                'conversation_id': str(self.conversation.id),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        # Verify AI service was called with empty conversation history
+        mock_ai_service.generate_chat_response.assert_called_once_with(
+            'Hi there!', 'en', []  # Empty history for first message
+        )
+
+    @patch('chat.views.ai_service')
+    async def test_second_message_includes_history(
+        self, mock_ai_service: MagicMock
+    ) -> None:
+        """Test that second message includes conversation history."""
+        await self.asetUp()
+        await sync_to_async(self.client.force_login)(self.user)
+
+        # Create first message in conversation
+        first_message = await ChatMessage.objects.acreate(
+            conversation=self.conversation,
+            message="Hi there!",
+            response="Hello! Nice to meet you.",
+        )
+
+        mock_ai_service.generate_chat_response = AsyncMock(
+            return_value="My name is Claude."
+        )
+        mock_ai_service.analyze_grammar = AsyncMock(return_value="No issues found.")
+
+        response = await self.client.post(
+            reverse('send_message'),
+            {
+                'message': 'What is your name?',
+                'conversation_id': str(self.conversation.id),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Verify AI service was called with conversation history
+        expected_history = [
+            {'role': 'user', 'content': 'Hi there!'},
+            {'role': 'assistant', 'content': 'Hello! Nice to meet you.'},
+        ]
+        mock_ai_service.generate_chat_response.assert_called_once_with(
+            'What is your name?', 'en', expected_history
+        )
+
+    @patch('chat.views.ai_service')
+    async def test_multiple_messages_build_history(
+        self, mock_ai_service: MagicMock
+    ) -> None:
+        """Test that multiple messages build up conversation history."""
+        await self.asetUp()
+        await sync_to_async(self.client.force_login)(self.user)
+
+        # Create multiple messages in conversation
+        await ChatMessage.objects.acreate(
+            conversation=self.conversation,
+            message="Hi there!",
+            response="Hello! Nice to meet you.",
+        )
+        await ChatMessage.objects.acreate(
+            conversation=self.conversation,
+            message="What is your name?",
+            response="My name is Claude.",
+        )
+        await ChatMessage.objects.acreate(
+            conversation=self.conversation,
+            message="Do you have any hobbies?",
+            response="I enjoy helping with various tasks.",
+        )
+
+        mock_ai_service.generate_chat_response = AsyncMock(
+            return_value="Yes, I remember you asked about my name earlier."
+        )
+        mock_ai_service.analyze_grammar = AsyncMock(return_value="No issues found.")
+
+        response = await self.client.post(
+            reverse('send_message'),
+            {
+                'message': 'Do you remember our conversation?',
+                'conversation_id': str(self.conversation.id),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Verify AI service was called with full conversation history
+        expected_history = [
+            {'role': 'user', 'content': 'Hi there!'},
+            {'role': 'assistant', 'content': 'Hello! Nice to meet you.'},
+            {'role': 'user', 'content': 'What is your name?'},
+            {'role': 'assistant', 'content': 'My name is Claude.'},
+            {'role': 'user', 'content': 'Do you have any hobbies?'},
+            {'role': 'assistant', 'content': 'I enjoy helping with various tasks.'},
+        ]
+        mock_ai_service.generate_chat_response.assert_called_once_with(
+            'Do you remember our conversation?', 'en', expected_history
+        )
+
+    @patch('chat.ai_service.Agent')
+    async def test_ai_service_conversation_memory_pydantic_messages(
+        self, MockAgent: MagicMock
+    ) -> None:
+        """Test that AI service correctly builds Pydantic AI message objects for conversation history."""
+        await self.asetUp()
+
+        mock_agent_instance = AsyncMock()
+        mock_result = AsyncMock()
+        mock_result.output = "I remember you asked about my name."
+        mock_agent_instance.run.return_value = mock_result
+        MockAgent.return_value = mock_agent_instance
+
+        from chat.ai_service import AIService
+
+        service = AIService()
+
+        conversation_history = [
+            {'role': 'user', 'content': 'Hi there!'},
+            {'role': 'assistant', 'content': 'Hello! Nice to meet you.'},
+            {'role': 'user', 'content': 'What is your name?'},
+            {'role': 'assistant', 'content': 'My name is Claude.'},
+        ]
+
+        result = await service.generate_chat_response(
+            "Do you remember our conversation?", "en", conversation_history
+        )
+
+        self.assertEqual(result, "I remember you asked about my name.")
+
+        # Verify agent.run was called with message_history parameter
+        mock_agent_instance.run.assert_called_once()
+
+        # Check the call arguments
+        call_args, call_kwargs = mock_agent_instance.run.call_args
+        self.assertEqual(
+            call_args[0], "Do you remember our conversation?"
+        )  # user_message
+        self.assertIn('message_history', call_kwargs)
+
+        message_history = call_kwargs['message_history']
+        self.assertIsInstance(message_history, list)
+        self.assertEqual(len(message_history), 4)  # 4 history messages
+
+        # Check that the message types and content are correct
+        from pydantic_ai.messages import ModelRequest, ModelResponse
+
+        self.assertIsInstance(message_history[0], ModelRequest)
+        self.assertEqual(message_history[0].parts[0].content, 'Hi there!')
+        self.assertIsInstance(message_history[1], ModelResponse)
+        self.assertEqual(
+            message_history[1].parts[0].content, 'Hello! Nice to meet you.'
+        )
+        self.assertIsInstance(message_history[2], ModelRequest)
+        self.assertEqual(message_history[2].parts[0].content, 'What is your name?')
+        self.assertIsInstance(message_history[3], ModelResponse)
+        self.assertEqual(message_history[3].parts[0].content, 'My name is Claude.')
+
+    async def test_conversation_memory_isolated_between_conversations(self) -> None:
+        """Test that conversation memory is isolated between different conversations."""
+        await self.asetUp()
+
+        # Create a second conversation
+        second_conversation = await Conversation.objects.acreate(
+            user=self.user, title='Second Conversation'
+        )
+
+        # Add messages to first conversation
+        await ChatMessage.objects.acreate(
+            conversation=self.conversation,
+            message="My dog's name is Toby",
+            response="That's a nice name for a dog!",
+        )
+
+        # Add different messages to second conversation
+        await ChatMessage.objects.acreate(
+            conversation=second_conversation,
+            message="My cat's name is Whiskers",
+            response="That's a great name for a cat!",
+        )
+
+        # Test that first conversation only sees its own history
+        with patch('chat.views.ai_service') as mock_ai_service:
+            mock_ai_service.generate_chat_response = AsyncMock(
+                return_value="Yes, your dog's name is Toby."
+            )
+            mock_ai_service.analyze_grammar = AsyncMock(return_value="No issues found.")
+
+            await sync_to_async(self.client.force_login)(self.user)
+            response = await self.client.post(
+                reverse('send_message'),
+                {
+                    'message': 'What is my pet\'s name?',
+                    'conversation_id': str(self.conversation.id),
+                },
+            )
+
+            self.assertEqual(response.status_code, 200)
+
+            # Verify only first conversation's history was passed
+            expected_history = [
+                {'role': 'user', 'content': "My dog's name is Toby"},
+                {'role': 'assistant', 'content': "That's a nice name for a dog!"},
+            ]
+            mock_ai_service.generate_chat_response.assert_called_once_with(
+                'What is my pet\'s name?', 'en', expected_history
+            )
 
 
 class ConversationModelTest(TestCase):
