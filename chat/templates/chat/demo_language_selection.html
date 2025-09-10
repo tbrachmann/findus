@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Choose Language - findus Demo</title>
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #f5f5f5;
+            --accent-color: #6c8cc7;
+            --text-color: #333;
+            --light-text: #666;
+            --border-radius: 16px;
+            --demo-color: #ff9800;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+                Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+
+        body {
+            background-color: #fafafa;
+            color: var(--text-color);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .language-container {
+            width: 100%;
+            max-width: 500px;
+            background-color: white;
+            border-radius: var(--border-radius);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            text-align: center;
+            border: 2px solid var(--demo-color);
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--demo-color), #f57c00);
+            color: white;
+            padding: 15px 20px;
+            margin: -40px -40px 30px -40px;
+            border-radius: var(--border-radius) var(--border-radius) 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .demo-badge {
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 20px;
+            padding: 6px 15px;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .welcome-text {
+            font-size: 1.1rem;
+            margin-bottom: 30px;
+            color: var(--text-color);
+        }
+
+        .demo-notice {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            color: #856404;
+        }
+
+        .language-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--demo-color);
+            margin-top: 20px;
+            margin-bottom: 5px;
+            text-align: left;
+        }
+
+        .section-title:first-of-type {
+            margin-top: 0;
+        }
+
+        .section-description {
+            font-size: 0.9rem;
+            color: var(--light-text);
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        .language-option {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        .language-option:hover {
+            border-color: var(--demo-color);
+            background-color: #fff8e1;
+        }
+
+        .language-option.selected {
+            border-color: var(--demo-color);
+            background-color: #fff3cd;
+        }
+
+        .language-radio {
+            margin-right: 15px;
+            width: 18px;
+            height: 18px;
+        }
+
+        .language-details {
+            flex: 1;
+            text-align: left;
+        }
+
+        .language-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .language-native {
+            font-size: 0.9rem;
+            color: var(--light-text);
+        }
+
+        .start-button {
+            background-color: var(--demo-color);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+            width: 100%;
+        }
+
+        .start-button:hover {
+            background-color: #f57c00;
+            transform: translateY(-1px);
+        }
+
+        .start-button:active {
+            transform: translateY(0);
+        }
+
+        .auth-links {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .auth-links a {
+            color: var(--demo-color);
+            text-decoration: none;
+            margin: 0 10px;
+            font-weight: 500;
+        }
+
+        .auth-links a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 600px) {
+            .language-container {
+                padding: 20px;
+                max-width: 90%;
+            }
+
+            .header {
+                margin: -20px -20px 20px -20px;
+                padding: 12px 15px;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .header h1 {
+                font-size: 1.2rem;
+            }
+
+            .demo-badge {
+                padding: 4px 10px;
+                font-size: 0.8rem;
+            }
+
+            .language-option {
+                padding: 12px 15px;
+            }
+
+            .language-name {
+                font-size: 1rem;
+            }
+
+            .language-native {
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="language-container">
+        <div class="header">
+            <h1>🎯 Choose Language - Demo</h1>
+            <span class="demo-badge">DEMO MODE</span>
+        </div>
+
+        <div class="demo-notice">
+            <strong>Demo Mode:</strong> Experience findus without creating an account! Your conversation will be stored in your browser session only.
+        </div>
+
+        <div class="welcome-text">
+            Select your preferred language to start your demo conversation
+        </div>
+
+        <form class="language-form" id="demo-language-form">
+            <div class="section-title">Conversation Language</div>
+            <div class="section-description">Language you want to practice speaking</div>
+
+            <label class="language-option" for="lang-en">
+                <input type="radio" name="language" value="en" id="lang-en" class="language-radio" checked>
+                <div class="language-details">
+                    <div class="language-name">English</div>
+                    <div class="language-native">English</div>
+                </div>
+            </label>
+
+            <label class="language-option" for="lang-es">
+                <input type="radio" name="language" value="es" id="lang-es" class="language-radio">
+                <div class="language-details">
+                    <div class="language-name">Spanish</div>
+                    <div class="language-native">Español</div>
+                </div>
+            </label>
+
+            <label class="language-option" for="lang-de">
+                <input type="radio" name="language" value="de" id="lang-de" class="language-radio">
+                <div class="language-details">
+                    <div class="language-name">German</div>
+                    <div class="language-native">Deutsch</div>
+                </div>
+            </label>
+
+            <div class="section-title">Grammar Analysis Language</div>
+            <div class="section-description">Language for grammar feedback and corrections</div>
+
+            <label class="language-option" for="analysis-lang-en">
+                <input type="radio" name="analysis_language" value="en" id="analysis-lang-en" class="analysis-language-radio" checked>
+                <div class="language-details">
+                    <div class="language-name">English</div>
+                    <div class="language-native">English</div>
+                </div>
+            </label>
+
+            <label class="language-option" for="analysis-lang-es">
+                <input type="radio" name="analysis_language" value="es" id="analysis-lang-es" class="analysis-language-radio">
+                <div class="language-details">
+                    <div class="language-name">Spanish</div>
+                    <div class="language-native">Español</div>
+                </div>
+            </label>
+
+            <label class="language-option" for="analysis-lang-de">
+                <input type="radio" name="analysis_language" value="de" id="analysis-lang-de" class="analysis-language-radio">
+                <div class="language-details">
+                    <div class="language-name">German</div>
+                    <div class="language-native">Deutsch</div>
+                </div>
+            </label>
+
+            <button type="submit" class="start-button">Start Demo Conversation</button>
+        </form>
+
+        <div class="auth-links">
+            Want to save your conversations?
+            <a href="/register/">Create Account</a> or
+            <a href="/login/">Login</a>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('demo-language-form');
+            const conversationRadios = document.querySelectorAll('.language-radio');
+            const analysisRadios = document.querySelectorAll('.analysis-language-radio');
+            const languageOptions = document.querySelectorAll('.language-option');
+
+            // Handle language option selection
+            languageOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    const radio = this.querySelector('input[type="radio"]');
+                    radio.checked = true;
+                    updateSelectedOptions();
+                });
+            });
+
+            // Handle radio button changes
+            conversationRadios.forEach(radio => {
+                radio.addEventListener('change', updateSelectedOptions);
+            });
+
+            analysisRadios.forEach(radio => {
+                radio.addEventListener('change', updateSelectedOptions);
+            });
+
+            function updateSelectedOptions() {
+                languageOptions.forEach(option => {
+                    const radio = option.querySelector('input[type="radio"]');
+                    if (radio.checked) {
+                        option.classList.add('selected');
+                    } else {
+                        option.classList.remove('selected');
+                    }
+                });
+            }
+
+            // Initialize selected state
+            updateSelectedOptions();
+
+            // Handle form submission
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                const selectedLanguage = document.querySelector('input[name="language"]:checked').value;
+                const selectedAnalysisLanguage = document.querySelector('input[name="analysis_language"]:checked').value;
+
+                // Clear any existing demo data
+                sessionStorage.removeItem('demo-messages');
+
+                // Redirect to demo chat with selected languages
+                window.location.href = `/demo/?language=${selectedLanguage}&analysis_language=${selectedAnalysisLanguage}`;
+            });
+        });
+    </script>
+</body>
+</html>

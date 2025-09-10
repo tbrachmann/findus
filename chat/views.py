@@ -14,6 +14,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render, redirect, aget_object_or_404
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_protect
 
 from .models import ChatMessage, Conversation, AfterActionReport
 from .ai_service import ai_service
@@ -366,3 +367,103 @@ async def conversation_analysis(
             "report": report,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Demo Mode Views (No Authentication Required)
+# ---------------------------------------------------------------------------
+
+
+async def demo_language_selection(request: HttpRequest) -> HttpResponse:
+    """Display language selection page for demo mode."""
+    return render(request, "chat/demo_language_selection.html")
+
+
+async def demo_chat_view(request: HttpRequest) -> HttpResponse:
+    """
+    Render the demo chat interface that uses session storage.
+
+    Args:
+        request: The HTTP request object
+
+    Returns:
+        Rendered demo_chat.html template or redirect to language selection
+    """
+    # Get language and analysis language from URL parameters
+    language = request.GET.get('language')
+    analysis_language = request.GET.get('analysis_language')
+
+    # If no language provided, redirect to language selection
+    if not language:
+        return redirect(reverse('demo_language_selection'))
+
+    # Validate language choices
+    if language not in CONVERSATION_STARTERS:
+        return redirect(reverse('demo_language_selection'))
+
+    # Default analysis language to English if not provided
+    if not analysis_language or analysis_language not in CONVERSATION_STARTERS:
+        analysis_language = 'en'
+
+    # Select a random conversation starter for demo based on language
+    conversation_starter = random.choice(CONVERSATION_STARTERS[language])
+
+    return render(
+        request,
+        "chat/demo_chat.html",
+        {
+            "conversation_starter": conversation_starter,
+            "language": language,
+            "analysis_language": analysis_language,
+        },
+    )
+
+
+@csrf_protect  # type: ignore[misc]
+async def demo_send_message(request: HttpRequest) -> JsonResponse:
+    """Process a demo message, send to AI API, and return the response.
+
+    Uses session storage instead of database persistence.
+
+    Args:
+        request: The HTTP request object containing the user message
+
+    Returns:
+        JsonResponse with the AI response and status
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
+
+    # Get the user message and languages from the request
+    user_message = request.POST.get('message', '').strip()
+    language = request.POST.get('language', 'en')
+    analysis_language = request.POST.get('analysis_language', 'en')
+
+    if not user_message:
+        return JsonResponse({'error': 'Message cannot be empty'}, status=400)
+
+    try:
+        # Generate chat response and grammar analysis concurrently
+        ai_response, grammar_analysis = await asyncio.gather(
+            ai_service.generate_chat_response(user_message, language),
+            ai_service.analyze_grammar(user_message, analysis_language),
+        )
+
+        # Return the response as JSON - frontend will handle session storage
+        return JsonResponse(
+            {
+                'message': user_message,
+                'response': ai_response,
+                'grammar_analysis': grammar_analysis,
+                'timestamp': timezone.now().isoformat(),
+            }
+        )
+
+    except Exception as e:
+        # Handle any errors that occur during the API call
+        return JsonResponse(
+            {
+                'error': f'Error communicating with AI: {str(e)}',
+            },
+            status=500,
+        )

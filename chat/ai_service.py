@@ -5,8 +5,6 @@ This module provides LLM interactions using Pydantic AI instead of direct
 Gemini API calls, with automatic logging to Logfire for observability.
 """
 
-import asyncio
-
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import AgentRunError
 from pydantic_ai.models.google import GoogleModel
@@ -17,9 +15,7 @@ class AIService:
 
     def __init__(self) -> None:
         """Initialize the AI service with Google Gemini model."""
-        self.model = GoogleModel(
-            'gemini-2.5-flash-lite',
-        )
+        self.model = GoogleModel('gemini-2.5-flash-lite')
 
         # Agent for general chat responses
         self.chat_agent = Agent(
@@ -141,22 +137,6 @@ class AIService:
         except AgentRunError as e:
             return f"⚠️ Failed to generate analysis: {e}"
 
-    def generate_chat_response_sync(
-        self, user_message: str, language_code: str = 'en'
-    ) -> str:
-        """Generate chat response synchronously."""
-        return asyncio.run(self.generate_chat_response(user_message, language_code))
 
-    def analyze_grammar_sync(self, text: str, language_code: str = 'en') -> str:
-        """Analyze grammar synchronously."""
-        return asyncio.run(self.analyze_grammar(text, language_code))
-
-    def analyze_conversation_sync(
-        self, messages_data: list[dict], language_code: str = 'en'
-    ) -> str:
-        """Analyze conversation synchronously."""
-        return asyncio.run(self.analyze_conversation(messages_data, language_code))
-
-
-# Global AI service instance
+# Default global AI service instance for backwards compatibility
 ai_service = AIService()

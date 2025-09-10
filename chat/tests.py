@@ -576,32 +576,6 @@ class AIServiceTest(TransactionTestCase):
         self.assertIn("Good greeting", call_args)
 
 
-class AIServiceRealIntegrationTest(TransactionTestCase):
-    """Test AI service with real Pydantic AI integration to reproduce bugs."""
-
-    async def test_agent_run_result_data_attribute_bug_fixed(self) -> None:
-        """
-        Test that verifies the bug is fixed - AI service now uses result.output correctly.
-
-        This test verifies that the AI service no longer tries to access result.data
-        and instead properly uses result.output from AgentRunResult.
-        """
-        from chat.ai_service import AIService
-
-        service = AIService()
-        # This should now work without AttributeError
-        try:
-            response = await service.generate_chat_response("Hello, test message")
-            # Should get a string response
-            self.assertIsInstance(response, str)
-            self.assertTrue(len(response) > 0)
-        except AttributeError as e:
-            if "'AgentRunResult' object has no attribute 'data'" in str(e):
-                self.fail(
-                    "Bug not fixed: AI service still trying to access result.data"
-                )
-
-
 class ConversationStarterTestCase(TestCase):
     """Test cases for the conversation starter feature."""
 

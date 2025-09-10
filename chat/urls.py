@@ -17,6 +17,12 @@ urlpatterns = [
     path('', views.language_selection, name='home'),
     # Language selection page
     path('select-language/', views.language_selection, name='language_selection'),
+    # Demo mode (no authentication required)
+    path('demo/', views.demo_chat_view, name='demo_chat'),
+    path(
+        'demo/language/', views.demo_language_selection, name='demo_language_selection'
+    ),
+    path('demo/send/', views.demo_send_message, name='demo_send_message'),
     # Explicit endpoint to begin a new conversation
     path('new/', views.new_conversation, name='new_conversation'),
     # Chat interface for a given conversation id
