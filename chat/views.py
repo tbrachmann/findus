@@ -228,9 +228,14 @@ async def send_message(request: HttpRequest) -> JsonResponse:
     # 3. This automatically logs input/output to Logfire for observability
     # ------------------------------------------------------------------
 
-    ai_response = await ai_service.generate_chat_response(
-        user_message, conversation.language, conversation_history
-    )
+    try:
+        ai_response = await ai_service.generate_chat_response(
+            user_message, conversation.language, conversation_history
+        )
+    except Exception as e:
+        return JsonResponse(
+            {'error': f'Error communicating with AI service: {str(e)}'}, status=500
+        )
 
     # Save the message and response to the database with conversation
     chat_message = await ChatMessage.objects.acreate(
@@ -453,10 +458,17 @@ async def demo_send_message(request: HttpRequest) -> JsonResponse:
     # ------------------------------------------------------------------
     # 2. Generate chat response and grammar analysis concurrently
     # ------------------------------------------------------------------
-    ai_response, grammar_analysis = await asyncio.gather(
-        ai_service.generate_chat_response(user_message, language, conversation_history),
-        ai_service.analyze_grammar(user_message, analysis_language),
-    )
+    try:
+        ai_response, grammar_analysis = await asyncio.gather(
+            ai_service.generate_chat_response(
+                user_message, language, conversation_history
+            ),
+            ai_service.analyze_grammar(user_message, analysis_language),
+        )
+    except Exception as e:
+        return JsonResponse(
+            {'error': f'Error communicating with AI service: {str(e)}'}, status=500
+        )
 
     # ------------------------------------------------------------------
     # 3. Update session with new message and response using Django's async session methods

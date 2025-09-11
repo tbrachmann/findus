@@ -96,7 +96,7 @@ class DemoModeTestCase(TestCase):
 
         # Verify AI service was called
         mock_ai_service.generate_chat_response.assert_called_once_with(
-            'Hello, how are you?', 'en'
+            'Hello, how are you?', 'en', []
         )
         mock_ai_service.analyze_grammar.assert_called_once_with(
             'Hello, how are you?', 'en'
@@ -311,7 +311,7 @@ class DemoModeTestCase(TestCase):
 
         # Verify async methods were called
         mock_ai_service.generate_chat_response.assert_called_once_with(
-            'Test message', 'en'
+            'Test message', 'en', []
         )
         mock_ai_service.analyze_grammar.assert_called_once_with('Test message', 'en')
 
