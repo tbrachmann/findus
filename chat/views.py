@@ -206,71 +206,61 @@ async def send_message(request: HttpRequest) -> JsonResponse:
     if not conversation_id:
         return JsonResponse({'error': 'Conversation ID is required'}, status=400)
 
-    try:
-        # Look up the conversation
-        conversation = await aget_object_or_404(
-            Conversation, pk=conversation_id, user=request.user
+    # Look up the conversation
+    conversation = await aget_object_or_404(
+        Conversation, pk=conversation_id, user=request.user
+    )
+
+    # ------------------------------------------------------------------
+    # 1. Build conversation history for memory
+    # ------------------------------------------------------------------
+    conversation_history = []
+    async for msg in conversation.messages.all().order_by('created_at'):
+        conversation_history.extend(
+            [
+                {'role': 'user', 'content': msg.message},
+                {'role': 'assistant', 'content': msg.response},
+            ]
         )
 
-        # ------------------------------------------------------------------
-        # 1. Build conversation history for memory
-        # ------------------------------------------------------------------
-        conversation_history = []
-        async for msg in conversation.messages.all().order_by('created_at'):
-            conversation_history.extend(
-                [
-                    {'role': 'user', 'content': msg.message},
-                    {'role': 'assistant', 'content': msg.response},
-                ]
-            )
+    # ------------------------------------------------------------------
+    # 2. Use Pydantic AI service to generate response with conversation memory
+    # 3. This automatically logs input/output to Logfire for observability
+    # ------------------------------------------------------------------
 
-        # ------------------------------------------------------------------
-        # 2. Use Pydantic AI service to generate response with conversation memory
-        # 3. This automatically logs input/output to Logfire for observability
-        # ------------------------------------------------------------------
+    ai_response = await ai_service.generate_chat_response(
+        user_message, conversation.language, conversation_history
+    )
 
-        ai_response = await ai_service.generate_chat_response(
-            user_message, conversation.language, conversation_history
-        )
+    # Save the message and response to the database with conversation
+    chat_message = await ChatMessage.objects.acreate(
+        conversation=conversation, message=user_message, response=ai_response
+    )
 
-        # Save the message and response to the database with conversation
-        chat_message = await ChatMessage.objects.acreate(
-            conversation=conversation, message=user_message, response=ai_response
-        )
+    # Update the conversation's last updated timestamp
+    conversation.updated_at = timezone.now()
 
-        # Update the conversation's last updated timestamp
-        conversation.updated_at = timezone.now()
+    # --------------------------------------------------------------
+    # Run conversation save and grammar analysis concurrently
+    # This ensures the grammar analysis actually completes
+    # --------------------------------------------------------------
+    await asyncio.gather(
+        conversation.asave(update_fields=['updated_at']),
+        analyze_grammar_async(
+            chat_message.id, user_message, conversation.analysis_language
+        ),
+    )
 
-        # --------------------------------------------------------------
-        # Run conversation save and grammar analysis concurrently
-        # This ensures the grammar analysis actually completes
-        # --------------------------------------------------------------
-        await asyncio.gather(
-            conversation.asave(update_fields=['updated_at']),
-            analyze_grammar_async(
-                chat_message.id, user_message, conversation.analysis_language
-            ),
-        )
-
-        # Return the response as JSON
-        return JsonResponse(
-            {
-                'message': user_message,
-                'response': ai_response,
-                'timestamp': chat_message.created_at.isoformat(),
-                'message_id': chat_message.id,  # ← allows client-side polling
-                'conversation_id': conversation.id,
-            }
-        )
-
-    except Exception as e:
-        # Handle any errors that occur during the API call
-        return JsonResponse(
-            {
-                'error': f'Error communicating with Gemini API: {str(e)}',
-            },
-            status=500,
-        )
+    # Return the response as JSON
+    return JsonResponse(
+        {
+            'message': user_message,
+            'response': ai_response,
+            'timestamp': chat_message.created_at.isoformat(),
+            'message_id': chat_message.id,  # ← allows client-side polling
+            'conversation_id': conversation.id,
+        }
+    )
 
 
 @login_required  # type: ignore
@@ -454,28 +444,50 @@ async def demo_send_message(request: HttpRequest) -> JsonResponse:
     if not user_message:
         return JsonResponse({'error': 'Message cannot be empty'}, status=400)
 
-    try:
-        # Generate chat response and grammar analysis concurrently
-        ai_response, grammar_analysis = await asyncio.gather(
-            ai_service.generate_chat_response(user_message, language),
-            ai_service.analyze_grammar(user_message, analysis_language),
-        )
+    # ------------------------------------------------------------------
+    # 1. Get conversation history from session storage using Django's async session methods
+    # ------------------------------------------------------------------
+    conversation_history = await request.session.aget('demo_conversation_history', [])
+    print(f"DEBUG: Retrieved conversation history from session: {conversation_history}")
 
-        # Return the response as JSON - frontend will handle session storage
-        return JsonResponse(
-            {
-                'message': user_message,
-                'response': ai_response,
-                'grammar_analysis': grammar_analysis,
-                'timestamp': timezone.now().isoformat(),
-            }
-        )
+    # ------------------------------------------------------------------
+    # 2. Generate chat response and grammar analysis concurrently
+    # ------------------------------------------------------------------
+    ai_response, grammar_analysis = await asyncio.gather(
+        ai_service.generate_chat_response(user_message, language, conversation_history),
+        ai_service.analyze_grammar(user_message, analysis_language),
+    )
 
-    except Exception as e:
-        # Handle any errors that occur during the API call
-        return JsonResponse(
-            {
-                'error': f'Error communicating with AI: {str(e)}',
-            },
-            status=500,
-        )
+    # ------------------------------------------------------------------
+    # 3. Update session with new message and response using Django's async session methods
+    # ------------------------------------------------------------------
+    new_conversation_history = conversation_history + [
+        {'role': 'user', 'content': user_message},
+        {'role': 'assistant', 'content': ai_response},
+    ]
+    await request.session.aset('demo_conversation_history', new_conversation_history)
+    print(f"DEBUG: Updated session with new history: {new_conversation_history}")
+    print(f"DEBUG: Session key: {request.session.session_key}")
+
+    # Return the response as JSON
+    return JsonResponse(
+        {
+            'message': user_message,
+            'response': ai_response,
+            'grammar_analysis': grammar_analysis,
+            'timestamp': timezone.now().isoformat(),
+        }
+    )
+
+
+async def demo_clear_conversation(request: HttpRequest) -> JsonResponse:
+    """Clear the demo conversation history from session storage."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
+
+    # Clear the conversation history from session using Django's async session methods
+    await request.session.apop('demo_conversation_history', None)
+
+    return JsonResponse(
+        {'status': 'success', 'message': 'Conversation history cleared'}
+    )

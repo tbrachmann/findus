@@ -1364,6 +1364,311 @@ class ConversationMemoryTest(TransactionTestCase):
             )
 
 
+class DemoModeConversationMemoryTest(TransactionTestCase):
+    """Test conversation memory functionality in demo mode using session storage."""
+
+    def setUp(self) -> None:
+        """Set up test data."""
+        self.client = AsyncClient()
+
+    @patch('chat.views.ai_service')
+    async def test_demo_first_message_no_history(
+        self, mock_ai_service: MagicMock
+    ) -> None:
+        """Test that first message in demo mode has no history."""
+        mock_ai_service.generate_chat_response = AsyncMock(
+            return_value="Hello! Nice to meet you."
+        )
+        mock_ai_service.analyze_grammar = AsyncMock(return_value="No issues found.")
+
+        response = await self.client.post(
+            reverse('demo_send_message'),
+            {
+                'message': 'Hi there!',
+                'language': 'en',
+                'analysis_language': 'en',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        # Verify AI service was called with empty conversation history
+        mock_ai_service.generate_chat_response.assert_called_once_with(
+            'Hi there!', 'en', []  # Empty history for first message
+        )
+
+    @patch('chat.views.ai_service')
+    async def test_demo_second_message_includes_history(
+        self, mock_ai_service: MagicMock
+    ) -> None:
+        """Test that second message in demo mode includes conversation history from session."""
+        # First send a message to populate the session
+        mock_ai_service.generate_chat_response = AsyncMock(
+            return_value="Hello! Nice to meet you."
+        )
+        mock_ai_service.analyze_grammar = AsyncMock(return_value="No issues found.")
+
+        await self.client.post(
+            reverse('demo_send_message'),
+            {
+                'message': 'Hi there!',
+                'language': 'en',
+                'analysis_language': 'en',
+            },
+        )
+
+        # Reset mock for second call
+        mock_ai_service.reset_mock()
+        mock_ai_service.generate_chat_response = AsyncMock(
+            return_value="My name is Claude."
+        )
+        mock_ai_service.analyze_grammar = AsyncMock(return_value="No issues found.")
+
+        # Send second message
+        response = await self.client.post(
+            reverse('demo_send_message'),
+            {
+                'message': 'What is your name?',
+                'language': 'en',
+                'analysis_language': 'en',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Verify AI service was called with conversation history
+        expected_history = [
+            {'role': 'user', 'content': 'Hi there!'},
+            {'role': 'assistant', 'content': 'Hello! Nice to meet you.'},
+        ]
+        mock_ai_service.generate_chat_response.assert_called_once_with(
+            'What is your name?', 'en', expected_history
+        )
+
+    @patch('chat.views.ai_service')
+    async def test_demo_session_gets_updated_with_new_messages(
+        self, mock_ai_service: MagicMock
+    ) -> None:
+        """Test that session gets updated with new messages after AI response."""
+        mock_ai_service.generate_chat_response = AsyncMock(
+            return_value="Hello! Nice to meet you."
+        )
+        mock_ai_service.analyze_grammar = AsyncMock(return_value="No issues found.")
+
+        # Make first request
+        response1 = await self.client.post(
+            reverse('demo_send_message'),
+            {
+                'message': 'Hi there!',
+                'language': 'en',
+                'analysis_language': 'en',
+            },
+        )
+        self.assertEqual(response1.status_code, 200)
+
+        # Verify second request includes history from first
+        mock_ai_service.reset_mock()
+        mock_ai_service.generate_chat_response = AsyncMock(
+            return_value="My name is Claude."
+        )
+
+        response2 = await self.client.post(
+            reverse('demo_send_message'),
+            {
+                'message': 'What is your name?',
+                'language': 'en',
+                'analysis_language': 'en',
+            },
+        )
+
+        self.assertEqual(response2.status_code, 200)
+
+        # Verify history was passed correctly
+        expected_history = [
+            {'role': 'user', 'content': 'Hi there!'},
+            {'role': 'assistant', 'content': 'Hello! Nice to meet you.'},
+        ]
+        mock_ai_service.generate_chat_response.assert_called_once_with(
+            'What is your name?', 'en', expected_history
+        )
+
+    @patch('chat.views.ai_service')
+    async def test_demo_multiple_messages_build_history(
+        self, mock_ai_service: MagicMock
+    ) -> None:
+        """Test that multiple messages build up conversation history in session storage."""
+        # Send first message
+        mock_ai_service.generate_chat_response = AsyncMock(
+            return_value="Hello! Nice to meet you."
+        )
+        mock_ai_service.analyze_grammar = AsyncMock(return_value="No issues found.")
+
+        await self.client.post(
+            reverse('demo_send_message'),
+            {
+                'message': 'Hi there!',
+                'language': 'en',
+                'analysis_language': 'en',
+            },
+        )
+
+        # Send second message
+        mock_ai_service.reset_mock()
+        mock_ai_service.generate_chat_response = AsyncMock(
+            return_value="My name is Claude."
+        )
+
+        await self.client.post(
+            reverse('demo_send_message'),
+            {
+                'message': 'What is your name?',
+                'language': 'en',
+                'analysis_language': 'en',
+            },
+        )
+
+        # Send third message and verify full history
+        mock_ai_service.reset_mock()
+        mock_ai_service.generate_chat_response = AsyncMock(
+            return_value="Yes, I remember you asked about my name earlier."
+        )
+
+        response = await self.client.post(
+            reverse('demo_send_message'),
+            {
+                'message': 'Do you remember our conversation?',
+                'language': 'en',
+                'analysis_language': 'en',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Verify AI service was called with full conversation history
+        expected_history = [
+            {'role': 'user', 'content': 'Hi there!'},
+            {'role': 'assistant', 'content': 'Hello! Nice to meet you.'},
+            {'role': 'user', 'content': 'What is your name?'},
+            {'role': 'assistant', 'content': 'My name is Claude.'},
+        ]
+        mock_ai_service.generate_chat_response.assert_called_once_with(
+            'Do you remember our conversation?', 'en', expected_history
+        )
+
+    @patch('chat.views.ai_service')
+    async def test_demo_conversation_memory_with_different_languages(
+        self, mock_ai_service: MagicMock
+    ) -> None:
+        """Test that demo conversation memory works with different languages."""
+        mock_ai_service.generate_chat_response = AsyncMock(
+            return_value="Hola! ¿Cómo estás?"
+        )
+        mock_ai_service.analyze_grammar = AsyncMock(
+            return_value="Sin problemas gramaticales."
+        )
+
+        response = await self.client.post(
+            reverse('demo_send_message'),
+            {
+                'message': '¡Hola! Soy nuevo aquí.',
+                'language': 'es',
+                'analysis_language': 'es',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Verify Spanish conversation was handled correctly
+        mock_ai_service.generate_chat_response.assert_called_once_with(
+            '¡Hola! Soy nuevo aquí.', 'es', []
+        )
+
+    async def test_demo_clear_conversation_history(self) -> None:
+        """Test that demo conversation history can be cleared."""
+        # Send a message first to populate history
+        with patch('chat.views.ai_service') as mock_ai_service:
+            mock_ai_service.generate_chat_response = AsyncMock(return_value="Hello!")
+            mock_ai_service.analyze_grammar = AsyncMock(return_value="No issues found.")
+
+            await self.client.post(
+                reverse('demo_send_message'),
+                {
+                    'message': 'Hi there!',
+                    'language': 'en',
+                    'analysis_language': 'en',
+                },
+            )
+
+        # Clear the conversation
+        response = await self.client.post(reverse('demo_clear_conversation'))
+
+        self.assertEqual(response.status_code, 200)
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data['status'], 'success')
+
+        # Verify next message has no history
+        with patch('chat.views.ai_service') as mock_ai_service:
+            mock_ai_service.generate_chat_response = AsyncMock(
+                return_value="Hello again!"
+            )
+            mock_ai_service.analyze_grammar = AsyncMock(return_value="No issues found.")
+
+            await self.client.post(
+                reverse('demo_send_message'),
+                {
+                    'message': 'Hi again!',
+                    'language': 'en',
+                    'analysis_language': 'en',
+                },
+            )
+
+            # Should be called with empty history after clear
+            mock_ai_service.generate_chat_response.assert_called_once_with(
+                'Hi again!', 'en', []
+            )
+
+    async def test_demo_clear_conversation_only_post(self) -> None:
+        """Test that demo clear conversation only accepts POST requests."""
+        response = await self.client.get(reverse('demo_clear_conversation'))
+        self.assertEqual(response.status_code, 405)
+
+    @patch('chat.views.ai_service')
+    async def test_demo_isolated_sessions(self, mock_ai_service: MagicMock) -> None:
+        """Test that different browser sessions have isolated conversation histories."""
+        mock_ai_service.generate_chat_response = AsyncMock(return_value="Hello!")
+        mock_ai_service.analyze_grammar = AsyncMock(return_value="No issues found.")
+
+        # First client/session
+        client1 = AsyncClient()
+        await client1.post(
+            reverse('demo_send_message'),
+            {
+                'message': 'Hi from session 1!',
+                'language': 'en',
+                'analysis_language': 'en',
+            },
+        )
+
+        # Second client/session - this should have empty history
+        client2 = AsyncClient()
+        mock_ai_service.reset_mock()
+
+        response2 = await client2.post(
+            reverse('demo_send_message'),
+            {
+                'message': 'Hi from session 2!',
+                'language': 'en',
+                'analysis_language': 'en',
+            },
+        )
+
+        self.assertEqual(response2.status_code, 200)
+
+        # Session 2 should start with empty history (isolated from session 1)
+        mock_ai_service.generate_chat_response.assert_called_once_with(
+            'Hi from session 2!', 'en', []
+        )
+
+
 class ConversationModelTest(TestCase):
     """Test Conversation model with language field."""
 

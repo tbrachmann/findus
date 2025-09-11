@@ -23,6 +23,7 @@ urlpatterns = [
         'demo/language/', views.demo_language_selection, name='demo_language_selection'
     ),
     path('demo/send/', views.demo_send_message, name='demo_send_message'),
+    path('demo/clear/', views.demo_clear_conversation, name='demo_clear_conversation'),
     # Explicit endpoint to begin a new conversation
     path('new/', views.new_conversation, name='new_conversation'),
     # Chat interface for a given conversation id
