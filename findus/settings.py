@@ -40,9 +40,9 @@ ALLOWED_HOSTS: List[str] = os.getenv(
     'ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0'
 ).split(',')
 
-# Add Heroku domain if running on Heroku (DATABASE_URL indicates production)
+# On Heroku, use wildcard since Heroku router validates Host header
 if os.getenv('DATABASE_URL'):
-    ALLOWED_HOSTS.append('findus-ai-934313ace4ce.herokuapp.com')
+    ALLOWED_HOSTS = ['*']
 
 
 # Application definition
