@@ -39,8 +39,10 @@ DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 ALLOWED_HOSTS: List[str] = os.getenv(
     'ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0'
 ).split(',')
-if os.getenv('HEROKU_APP_NAME'):
-    ALLOWED_HOSTS.append(f"{os.getenv('HEROKU_APP_NAME')}.herokuapp.com")
+
+# Add Heroku domain if running on Heroku (DATABASE_URL indicates production)
+if os.getenv('DATABASE_URL'):
+    ALLOWED_HOSTS.append('findus-ai-934313ace4ce.herokuapp.com')
 
 
 # Application definition
