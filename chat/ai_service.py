@@ -28,28 +28,37 @@ class AIService:
         language_map = {'en': 'English', 'es': 'Spanish', 'de': 'German'}
         return language_map.get(language_code, 'English')
 
-    def _create_grammar_agent(self, language_code: str) -> Agent:
+    def _create_grammar_agent(
+        self, language_code: str, grammar_analysis_language_code: str
+    ) -> Agent:
         """Create a grammar analysis agent for the specified language."""
         language_name = self._get_language_name(language_code)
+        grammar_analysis_language_name = self._get_language_name(
+            grammar_analysis_language_code
+        )
 
         system_prompt = (
             f"You are a {language_name} teacher analyzing text for grammatical errors "
-            f"and spelling mistakes. Provide brief, helpful feedback in {language_name}. "
-            f"If there are no issues, respond with 'No issues found' in {language_name}."
+            f"and spelling mistakes. Provide brief, helpful feedback in "
+            f"{grammar_analysis_language_name}. If there are no issues, respond with "
+            f"'No issues found' in {grammar_analysis_language_name}."
         )
 
         return Agent(model=self.model, system_prompt=system_prompt)
 
-    def _create_analysis_agent(self, language_code: str) -> Agent:
-        """Create a conversation analysis agent for the specified language."""
-        language_name = self._get_language_name(language_code)
+    def _create_analysis_agent(
+        self, analysis_language_code: str, target_language_code: str
+    ) -> Agent:
+        """Create a conversation analysis agent for the specified languages."""
+        analysis_language_name = self._get_language_name(analysis_language_code)
+        target_language_name = self._get_language_name(target_language_code)
 
         system_prompt = (
-            f"You are an experienced {language_name} teacher creating a short "
+            f"You are an experienced {target_language_name} teacher creating a short "
             f"after-action report for your student. Identify recurring "
             f"grammar/spelling issues, highlight strengths, and provide "
             f"3-5 concrete exercises or recommendations to improve. "
-            f"Respond in concise bullet-points in {language_name}."
+            f"Respond in concise bullet-points in {analysis_language_name}."
         )
 
         return Agent(model=self.model, system_prompt=system_prompt)
@@ -115,7 +124,12 @@ class AIService:
 
         return str(result.output)
 
-    async def analyze_grammar(self, text: str, language_code: str = 'en') -> str:
+    async def analyze_grammar(
+        self,
+        text: str,
+        grammar_analysis_language_code: str = 'en',
+        language_code: str = 'en',
+    ) -> str:
         """
         Analyze text for grammar and spelling issues.
 
@@ -127,21 +141,27 @@ class AIService:
             Grammar analysis feedback
         """
         try:
-            grammar_agent = self._create_grammar_agent(language_code)
+            grammar_agent = self._create_grammar_agent(
+                language_code, grammar_analysis_language_code
+            )
             result = await grammar_agent.run(f'Text: """\n{text}\n"""')
             return str(result.output)
         except AgentRunError as e:
             return f"Analysis failed: {e}"
 
     async def analyze_conversation(
-        self, messages_data: list[dict], language_code: str = 'en'
+        self,
+        messages_data: list[dict],
+        analysis_language_code: str = 'en',
+        target_language_code: str = 'en',
     ) -> str:
         """
         Generate an after-action report for a conversation.
 
         Args:
             messages_data: List of dicts with 'message' and 'feedback' keys
-            language_code: Language code for the analysis (en, es, de)
+            analysis_language_code: Language code for the analysis feedback (en, es, de)
+            target_language_code: Language code of the conversation being analyzed (en, es, de)
 
         Returns:
             Conversation analysis text
@@ -161,7 +181,9 @@ class AIService:
 
             prompt = "".join(prompt_parts)
 
-            analysis_agent = self._create_analysis_agent(language_code)
+            analysis_agent = self._create_analysis_agent(
+                analysis_language_code, target_language_code
+            )
             result = await analysis_agent.run(prompt)
             return str(result.output)
 

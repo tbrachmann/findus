@@ -432,7 +432,7 @@ class AsyncGrammarAnalysisTest(TransactionTestCase):
             "Found spelling error: error's should be errors",
         )
         mock_ai_service.analyze_grammar.assert_called_once_with(
-            self.message.message, 'en'
+            self.message.message, 'en', 'en'
         )
 
     @patch('chat.views.ai_service')
@@ -498,7 +498,9 @@ class AsyncGrammarAnalysisTest(TransactionTestCase):
         # Verify both AI service methods were called
         mock_ai_service.generate_chat_response.assert_called_once()
         mock_ai_service.analyze_grammar.assert_called_once_with(
-            'Hello, can you help me with my grammer?', 'en'  # default language
+            'Hello, can you help me with my grammer?',
+            'en',
+            'en',  # analysis_language, language_code
         )
 
 
@@ -1031,7 +1033,7 @@ class AsyncLanguageSpecificAIServiceTest(TransactionTestCase):
 
         # Verify grammar analysis was called with analysis language (English by default)
         mock_ai_service.analyze_grammar.assert_called_once_with(
-            'Wie geht es dir?', 'en'  # analysis_language defaults to English
+            'Wie geht es dir?', 'en', 'de'  # analysis_language=en, language_code=de
         )
 
     @patch('chat.views.ai_service')
@@ -1072,7 +1074,7 @@ class AsyncLanguageSpecificAIServiceTest(TransactionTestCase):
 
         # Verify grammar analysis was called with English (analysis language)
         mock_ai_service.analyze_grammar.assert_called_once_with(
-            'Wie geht es dir?', 'en'  # Analysis language, not conversation language
+            'Wie geht es dir?', 'en', 'de'  # analysis_language=en, language_code=de
         )
 
     @patch('chat.views.ai_service')

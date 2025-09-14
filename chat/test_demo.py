@@ -99,7 +99,7 @@ class DemoModeTestCase(TestCase):
             'Hello, how are you?', 'en', []
         )
         mock_ai_service.analyze_grammar.assert_called_once_with(
-            'Hello, how are you?', 'en'
+            'Hello, how are you?', 'en', 'en'
         )
 
     @patch('chat.views.ai_service')
@@ -313,7 +313,9 @@ class DemoModeTestCase(TestCase):
         mock_ai_service.generate_chat_response.assert_called_once_with(
             'Test message', 'en', []
         )
-        mock_ai_service.analyze_grammar.assert_called_once_with('Test message', 'en')
+        mock_ai_service.analyze_grammar.assert_called_once_with(
+            'Test message', 'en', 'en'
+        )
 
     def test_demo_mode_csrf_protection(self) -> None:
         """Test that demo mode still uses CSRF protection."""

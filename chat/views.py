@@ -83,7 +83,10 @@ CONVERSATION_STARTERS = {
 
 
 async def analyze_grammar_async(
-    message_id: int, user_message: str, language_code: str = 'en'
+    message_id: int,
+    user_message: str,
+    analysis_language: str = 'en',
+    language_code: str = 'en',
 ) -> None:
     """
     Async grammar analysis using Django's async ORM.
@@ -94,10 +97,13 @@ async def analyze_grammar_async(
     Args:
         message_id: Primary-key of the ``ChatMessage`` row to update
         user_message: The original user prompt
-        language_code: Language code for the conversation
+        analysis_language: Language code for the grammar analysis feedback
+        language_code: Language code for the conversation being analyzed
     """
     try:
-        analysis_text = await ai_service.analyze_grammar(user_message, language_code)
+        analysis_text = await ai_service.analyze_grammar(
+            user_message, analysis_language, language_code
+        )
         # Update only the grammar_analysis column to avoid race-conditions
         await ChatMessage.objects.filter(pk=message_id).aupdate(
             grammar_analysis=analysis_text
@@ -252,7 +258,10 @@ async def send_message(request: HttpRequest) -> JsonResponse:
     await asyncio.gather(
         conversation.asave(update_fields=['updated_at']),
         analyze_grammar_async(
-            chat_message.id, user_message, conversation.analysis_language
+            chat_message.id,
+            user_message,
+            conversation.analysis_language,
+            conversation.language,
         ),
     )
 
@@ -351,7 +360,7 @@ async def conversation_analysis(
     # ------------------------------------------------------------------ #
 
     analysis_text: str = await ai_service.analyze_conversation(
-        messages_data, conversation.analysis_language
+        messages_data, conversation.analysis_language, conversation.language
     )
 
     # ------------------------------------------------------------------ #
@@ -467,7 +476,7 @@ async def demo_send_message(request: HttpRequest) -> JsonResponse:
             ai_service.generate_chat_response(
                 user_message, language, conversation_history
             ),
-            ai_service.analyze_grammar(user_message, analysis_language),
+            ai_service.analyze_grammar(user_message, analysis_language, language),
         )
     except Exception as e:
         return JsonResponse(
