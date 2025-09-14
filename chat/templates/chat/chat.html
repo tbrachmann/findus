@@ -1,3 +1,4 @@
+{% load markdown_filters %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -258,6 +259,94 @@
             font-style: italic;
         }
 
+        /* Markdown content styling */
+        .ai-bubble h1, .ai-bubble h2, .ai-bubble h3, .ai-bubble h4, .ai-bubble h5, .ai-bubble h6 {
+            margin: 0.5em 0 0.3em 0;
+            color: #424242;
+            font-weight: 600;
+        }
+
+        .ai-bubble h1 { font-size: 1.25em; }
+        .ai-bubble h2 { font-size: 1.15em; }
+        .ai-bubble h3 { font-size: 1.1em; }
+
+        .ai-bubble p {
+            margin: 0.5em 0;
+        }
+
+        .ai-bubble strong {
+            font-weight: 600;
+            color: #2c2c2c;
+        }
+
+        .ai-bubble em {
+            font-style: italic;
+            color: #555;
+        }
+
+        .ai-bubble code {
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            padding: 2px 4px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9em;
+            color: #d73a49;
+        }
+
+        .ai-bubble pre {
+            background-color: #f8f8f8;
+            border: 1px solid #e1e1e1;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 8px 0;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.85em;
+            line-height: 1.4;
+        }
+
+        .ai-bubble pre code {
+            background-color: transparent;
+            border: none;
+            padding: 0;
+            color: #24292e;
+        }
+
+        .ai-bubble ul, .ai-bubble ol {
+            margin: 0.5em 0;
+            padding-left: 1.5em;
+        }
+
+        .ai-bubble li {
+            margin: 0.25em 0;
+        }
+
+        .ai-bubble blockquote {
+            border-left: 4px solid #dfe2e5;
+            padding-left: 12px;
+            margin: 0.5em 0;
+            color: #6a737d;
+            font-style: italic;
+        }
+
+        .ai-bubble table {
+            border-collapse: collapse;
+            margin: 0.5em 0;
+            width: 100%;
+        }
+
+        .ai-bubble th, .ai-bubble td {
+            border: 1px solid #ddd;
+            padding: 6px 8px;
+            text-align: left;
+        }
+
+        .ai-bubble th {
+            background-color: #f6f8fa;
+            font-weight: 600;
+        }
+
         /* Responsive adjustments */
         @media (max-width: 600px) {
             .chat-container {
@@ -337,7 +426,7 @@
                     <!-- AI Message Row -->
                     <div class="message-row ai-row">
                         <div class="message-bubble ai-bubble">
-                            {{ message.response|linebreaksbr }}
+                            {{ message.response|render_markdown }}
                             <div class="message-time">{{ message.created_at|date:"g:i A" }}</div>
                         </div>
                     </div>
@@ -464,6 +553,23 @@
                 scrollToBottom();
             }
 
+            // Simple client-side markdown renderer for basic formatting
+            function renderMarkdown(text) {
+                if (!text) return '';
+
+                return text
+                    // Bold text **text** or __text__
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/__(.*?)__/g, '<strong>$1</strong>')
+                    // Italic text *text* or _text_
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/_(.*?)_/g, '<em>$1</em>')
+                    // Inline code `code`
+                    .replace(/`(.*?)`/g, '<code>$1</code>')
+                    // Line breaks
+                    .replace(/\n/g, '<br>');
+            }
+
             function addAIResponse(text, messageId) {
                 const messageRow = document.createElement('div');
                 messageRow.className = 'message-row ai-row';
@@ -471,8 +577,8 @@
                 const messageBubble = document.createElement('div');
                 messageBubble.className = 'message-bubble ai-bubble';
 
-                // Replace line breaks with <br> tags
-                const formattedText = text.replace(/\n/g, '<br>');
+                // Apply basic markdown formatting
+                const formattedText = renderMarkdown(text);
                 messageBubble.innerHTML = formattedText;
 
                 const timeDiv = document.createElement('div');
