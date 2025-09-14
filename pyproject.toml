@@ -67,6 +67,7 @@ dependencies = [
     "django-extensions>=3.0.0",
     "ipython>=8.0.0",
     "uvicorn>=0.35.0",
+    "dj-database-url>=2.0.0",
 ]
 
 [project.optional-dependencies]
