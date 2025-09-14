@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from typing import List
 
+import dj_database_url
 import logfire
 from dotenv import load_dotenv
 
@@ -31,11 +32,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY', 'SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
 # Explicit type annotation so static type-checkers (mypy, Pyright, etc.) know
 # the expected value type.
-ALLOWED_HOSTS: List[str] = ['testserver', 'localhost', '127.0.0.1', '0.0.0.0']
+ALLOWED_HOSTS: List[str] = os.getenv(
+    'ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0'
+).split(',')
+if os.getenv('HEROKU_APP_NAME'):
+    ALLOWED_HOSTS.append(f"{os.getenv('HEROKU_APP_NAME')}.herokuapp.com")
 
 
 # Application definition
@@ -55,6 +60,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -87,13 +93,23 @@ ASGI_APPLICATION = 'findus.asgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-        'CONN_MAX_AGE': 0,  # Disable persistent connections for async
+# Use PostgreSQL on Heroku, SQLite locally
+if os.getenv('DATABASE_URL'):
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=os.getenv('DATABASE_URL'),
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+            'CONN_MAX_AGE': 0,  # Disable persistent connections for async
+        }
+    }
 
 
 # Password validation
@@ -131,6 +147,10 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Whitenoise configuration for static files
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -149,7 +169,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY")
 
-if not GEMINI_API_KEY:
+if not GEMINI_API_KEY and not os.getenv(
+    'DATABASE_URL'
+):  # Allow missing key in production if not needed
     raise RuntimeError(
         "GEMINI_API_KEY not set.\n"
         "Create a `.env` file in the project root with a line like:\n"
@@ -162,23 +184,24 @@ if not GEMINI_API_KEY:
 
 LOGFIRE_TOKEN: str | None = os.getenv("LOGFIRE_KEY")
 
-if not LOGFIRE_TOKEN:
+if LOGFIRE_TOKEN:
+    logfire.configure(
+        token=LOGFIRE_TOKEN,
+        service_name="findus-django",
+        service_version="1.0.0",
+        environment="production" if os.getenv('DATABASE_URL') else "development",
+    )
+
+    logfire.instrument_django()
+    if not os.getenv('DATABASE_URL'):  # Only instrument SQLite in development
+        logfire.instrument_sqlite3()
+    logfire.instrument_pydantic_ai()
+elif not os.getenv('DATABASE_URL'):  # Only require in development
     raise RuntimeError(
         "LOGFIRE_KEY not set.\n"
         "Create a `.env` file in the project root with a line like:\n"
         "LOGFIRE_KEY=your_logfire_key_here"
     )
-
-logfire.configure(
-    token=LOGFIRE_TOKEN,
-    service_name="findus-django",
-    service_version="1.0.0",
-    environment="development",
-)
-
-logfire.instrument_django()
-logfire.instrument_sqlite3()
-logfire.instrument_pydantic_ai()
 
 # --------------------------------------------------------------------------- #
 # Django-Extensions configuration                                             #
