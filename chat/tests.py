@@ -282,9 +282,9 @@ class AsyncChatViewsTest(TransactionTestCase):
 
         # Mock the AI service
         mock_analysis = (
-            "• Strengths: Clear communication, polite tone\n"
-            "• Areas for improvement: None identified\n"
-            "• Recommendations: Continue practicing daily conversations"
+            "* Strengths: Clear communication, polite tone\n"
+            "* Areas for improvement: None identified\n"
+            "* Recommendations: Continue practicing daily conversations"
         )
         mock_ai_service.analyze_conversation = AsyncMock(return_value=mock_analysis)
 
@@ -1098,7 +1098,7 @@ class AsyncLanguageSpecificAIServiceTest(TransactionTestCase):
 
         # Mock AI service
         mock_ai_service.analyze_conversation = AsyncMock(
-            return_value="• Strengths: Appropriate greeting\n• Recommendations: Continue practicing"
+            return_value="* Strengths: Appropriate greeting\n* Recommendations: Continue practicing"
         )
 
         response = await self.client.get(

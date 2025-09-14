@@ -58,7 +58,7 @@ class AIService:
             f"after-action report for your student. Identify recurring "
             f"grammar/spelling issues, highlight strengths, and provide "
             f"3-5 concrete exercises or recommendations to improve. "
-            f"Respond in concise bullet-points in {analysis_language_name}."
+            f"Respond using markdown bullet-points (with * or -) in {analysis_language_name}."
         )
 
         return Agent(model=self.model, system_prompt=system_prompt)
