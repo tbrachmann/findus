@@ -390,6 +390,8 @@ async def demo_chat_view(request: HttpRequest) -> HttpResponse:
     """
     Render the demo chat interface that uses session storage.
 
+    Clears any existing conversation history to start fresh on page load.
+
     Args:
         request: The HTTP request object
 
@@ -411,6 +413,9 @@ async def demo_chat_view(request: HttpRequest) -> HttpResponse:
     # Default analysis language to English if not provided
     if not analysis_language or analysis_language not in CONVERSATION_STARTERS:
         analysis_language = 'en'
+
+    # Clear any existing conversation history to start fresh
+    await request.session.apop('demo_conversation_history', None)
 
     # Select a random conversation starter for demo based on language
     conversation_starter = random.choice(CONVERSATION_STARTERS[language])
@@ -453,7 +458,6 @@ async def demo_send_message(request: HttpRequest) -> JsonResponse:
     # 1. Get conversation history from session storage using Django's async session methods
     # ------------------------------------------------------------------
     conversation_history = await request.session.aget('demo_conversation_history', [])
-    print(f"DEBUG: Retrieved conversation history from session: {conversation_history}")
 
     # ------------------------------------------------------------------
     # 2. Generate chat response and grammar analysis concurrently
@@ -478,8 +482,6 @@ async def demo_send_message(request: HttpRequest) -> JsonResponse:
         {'role': 'assistant', 'content': ai_response},
     ]
     await request.session.aset('demo_conversation_history', new_conversation_history)
-    print(f"DEBUG: Updated session with new history: {new_conversation_history}")
-    print(f"DEBUG: Session key: {request.session.session_key}")
 
     # Return the response as JSON
     return JsonResponse(
