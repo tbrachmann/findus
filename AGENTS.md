@@ -12,3 +12,5 @@ please make sure all new features are covered by tests, and make sure that all t
 where possible use native async methods instead of async_to_sync or sync_to_async.
 only skip mypy checks if there is no other alternative.
 never use --no-verify on git commits
+
+if you change some sort of configuration like databases, LLMs, or frameworks - please update README.md with your commit.
