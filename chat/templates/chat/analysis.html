@@ -1,3 +1,4 @@
+{% load markdown_filters %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -88,18 +89,69 @@
         }
 
         .analysis-content {
-            white-space: pre-line;
             line-height: 1.8;
         }
 
-        .analysis-content ul {
+        .analysis-content h1, .analysis-content h2, .analysis-content h3, .analysis-content h4, .analysis-content h5, .analysis-content h6 {
+            margin: 1.5rem 0 0.5rem 0;
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .analysis-content h1 { font-size: 1.4em; }
+        .analysis-content h2 { font-size: 1.3em; }
+        .analysis-content h3 { font-size: 1.2em; }
+
+        .analysis-content p {
+            margin: 0.8em 0;
+        }
+
+        .analysis-content strong {
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .analysis-content em {
+            font-style: italic;
+            color: #555;
+        }
+
+        .analysis-content ul, .analysis-content ol {
+            margin: 0.8em 0;
             padding-left: 1.5rem;
         }
 
-        .analysis-content h3 {
-            margin-top: 1.5rem;
-            margin-bottom: 0.5rem;
-            color: var(--primary-color);
+        .analysis-content li {
+            margin: 0.4em 0;
+        }
+
+        .analysis-content code {
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            padding: 2px 4px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9em;
+            color: #d73a49;
+        }
+
+        .analysis-content pre {
+            background-color: #f8f8f8;
+            border: 1px solid #e1e1e1;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 8px 0;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.85em;
+            line-height: 1.4;
+        }
+
+        .analysis-content pre code {
+            background-color: transparent;
+            border: none;
+            padding: 0;
+            color: #24292e;
         }
 
         .action-buttons {
@@ -200,7 +252,7 @@
     <main>
         <div class="analysis-container">
             <h2 class="analysis-title">After-Action Report</h2>
-            <div class="analysis-content">{{ analysis|linebreaksbr }}</div>
+            <div class="analysis-content">{{ analysis|render_markdown }}</div>
         </div>
 
         <div class="action-buttons">
