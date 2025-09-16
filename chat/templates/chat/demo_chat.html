@@ -1,10 +1,13 @@
 {% load markdown_filters %}
+{% load webpack_loader %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>findus Demo Chat</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'chat/css/highlight.css' %}">
     <style>
         :root {
             --primary-color: #4a6fa5;
@@ -363,6 +366,7 @@
         </div>
     </div>
 
+    {% render_bundle 'main' 'js' %}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const messageForm = document.getElementById('message-form');
@@ -468,20 +472,22 @@
                 scrollToBottom();
             }
 
-            // Simple client-side markdown renderer for basic formatting
+            // Enhanced markdown renderer with syntax highlighting
             function renderMarkdown(text) {
                 if (!text) return '';
 
+                // Use the enhanced markdown renderer from the bundle
+                if (window.MarkdownRenderer) {
+                    return window.MarkdownRenderer.render(text);
+                }
+
+                // Fallback to basic rendering if bundle isn't loaded
                 return text
-                    // Bold text **text** or __text__
                     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                     .replace(/__(.*?)__/g, '<strong>$1</strong>')
-                    // Italic text *text* or _text_
                     .replace(/\*(.*?)\*/g, '<em>$1</em>')
                     .replace(/_(.*?)_/g, '<em>$1</em>')
-                    // Inline code `code`
                     .replace(/`(.*?)`/g, '<code>$1</code>')
-                    // Line breaks
                     .replace(/\n/g, '<br>');
             }
 

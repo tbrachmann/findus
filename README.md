@@ -14,6 +14,7 @@ Each conversation is stored separately, making it easy to revisit past chats, wh
 | **Conversation management** | Each chat is grouped under a `Conversation` record with its own URL (`/conversation/<id>/`). |
 | **Grammar / spelling analysis** | Background grammar analysis using `asyncio.create_task()` for true non-blocking processing. |
 | **Responsive UI** | Flex-box chat layout, mobile-first design, dark-on-light colour scheme. |
+| **Enhanced markdown rendering** | Powered by `marked.js` with syntax highlighting via `highlight.js` and secure rendering via `DOMPurify`. |
 | **Real-time UX** | Typing indicator, automatic scrolling, grammar results appear without page refresh. |
 | **Code quality** | Pre-commit hooks run **Black**, **Flake8**, and **Mypy** on every commit. |
 
@@ -26,6 +27,7 @@ This project uses **UV** for fast dependency management and Python environment h
 ### Prerequisites
 - Python ≥3.13
 - [UV](https://docs.astral.sh/uv/) - Install with: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- Node.js ≥18 - For building frontend markdown renderer assets
 
 ### Setup
 ```bash
@@ -36,6 +38,9 @@ cd findus
 # 2. Install Python (if needed) and sync dependencies
 # UV will automatically manage Python version and virtual environment
 uv sync
+
+# 3. Install Node.js dependencies for frontend assets
+npm install
 
 # Alternative: Install specific Python version with UV
 uv python install 3.13
@@ -49,7 +54,7 @@ uv sync
 # Add new dependency
 uv add package-name
 
-# Add dev dependency  
+# Add dev dependency
 uv add --dev package-name
 
 # Run commands in the UV environment
@@ -88,6 +93,9 @@ be committed to version control.
 ```bash
 # Run database migrations
 uv run python manage.py migrate
+
+# Build frontend assets (markdown renderer)
+npm run build
 
 # Start the async development server with ASGI
 uv run python manage.py runserver

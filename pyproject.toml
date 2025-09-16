@@ -71,6 +71,7 @@ dependencies = [
     "psycopg>=3.0.0",
     "whitenoise>=6.0.0",
     "markdown>=3.0.0",
+    "django-webpack-loader>=3.2.1",
 ]
 
 [project.optional-dependencies]
