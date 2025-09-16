@@ -184,6 +184,26 @@ uv add gunicorn "uvicorn[standard]"
 uv run gunicorn findus.asgi:application -w 4 -k uvicorn.workers.UvicornWorker
 ```
 
+### Heroku Deployment
+
+This application is configured for Heroku deployment with:
+
+- **Multi-buildpack setup**: Node.js (for webpack) + Python
+- **Automatic asset building**: Webpack bundles built during deployment via `heroku-postbuild`
+- **Environment variables**: Set `GEMINI_API_KEY`, `SECRET_KEY`, and `LOGFIRE_KEY` in Heroku config
+
+```bash
+# Deploy to Heroku
+heroku create your-app-name
+heroku config:set GEMINI_API_KEY=your_key_here
+heroku config:set SECRET_KEY=your_secret_here
+heroku config:set LOGFIRE_KEY=your_logfire_key_here
+git push heroku main
+
+# Run migrations on Heroku
+heroku run python manage.py migrate
+```
+
 ### Production Considerations
 
 - Configure `ALLOWED_HOSTS` in settings.py
@@ -191,6 +211,7 @@ uv run gunicorn findus.asgi:application -w 4 -k uvicorn.workers.UvicornWorker
 - Use environment variables for `SECRET_KEY`, `GEMINI_API_KEY`, and `LOGFIRE_KEY`
 - Consider using PostgreSQL instead of SQLite for better async performance
 - The database is configured with `CONN_MAX_AGE: 0` for async compatibility
+- Webpack assets are built automatically during Heroku deployment
 
 ---
 

@@ -13,4 +13,4 @@ where possible use native async methods instead of async_to_sync or sync_to_asyn
 only skip mypy checks if there is no other alternative.
 never use --no-verify on git commits
 
-if you change some sort of configuration like databases, LLMs, or frameworks - please update README.md with your commit.
+if you change some sort of configuration like databases, LLMs, or frameworks - please update README.md with your commit. If this change to configuration will mean a change for the deployment process, then make sure it will run on Heroku by updating the Heroku-specific config files.

@@ -4,7 +4,8 @@
   "description": "findus chat application frontend dependencies",
   "scripts": {
     "build": "webpack --mode production",
-    "dev": "webpack --mode development --watch"
+    "dev": "webpack --mode development --watch",
+    "heroku-postbuild": "webpack --mode production"
   },
   "dependencies": {
     "dompurify": "^3.0.8",

@@ -120,7 +120,8 @@ yarn.lock
 .yarn/build-state.yml
 .yarn/install-state.gz
 
-# Webpack Generated Files #
+# Webpack Generated Files (Development) #
+# Note: Production bundles are built during Heroku deployment
 chat/static/chat/js/*.js
 chat/static/chat/js/*.txt
 !chat/static/chat/js/.gitkeep
