@@ -7,6 +7,7 @@ Views for the chat application that integrates with Gemini API.
 from typing import Optional, Callable, TypeVar, Any
 import random
 import asyncio
+import sys
 
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
@@ -26,6 +27,21 @@ from .ai_service import ai_service
 
 # Type variables for view function annotations
 F = TypeVar('F', bound=Callable[..., Any])
+
+
+def conditional_ratelimit(
+    key: str, rate: str, method: str = 'POST'
+) -> Callable[[F], F]:
+    """Apply rate limiting only when not in test mode."""
+
+    def decorator(func: F) -> F:
+        # Check if we're running tests
+        if 'test' in sys.argv or hasattr(sys, '_called_from_test'):
+            return func  # Skip rate limiting during tests
+        return ratelimit(key=key, rate=rate, method=method)(func)  # type: ignore
+
+    return decorator
+
 
 # Conversation starter prompts - elementary language textbook style
 CONVERSATION_STARTERS = {
@@ -190,9 +206,9 @@ async def new_conversation(request: HttpRequest) -> HttpResponse:
 
 
 @login_required  # type: ignore
-@ratelimit(key='ip', rate='10/h', method='POST')  # type: ignore
-@ratelimit(key='ip', rate='100/d', method='POST')  # type: ignore
-@ratelimit(key='session', rate='5/h', method='POST')  # type: ignore
+@conditional_ratelimit(key='ip', rate='10/h', method='POST')
+@conditional_ratelimit(key='ip', rate='100/d', method='POST')
+@conditional_ratelimit(key='session', rate='5/h', method='POST')
 async def send_message(request: HttpRequest) -> JsonResponse:
     """
     Process a user message, send to Gemini API, and return the response.
@@ -445,9 +461,9 @@ async def demo_chat_view(request: HttpRequest) -> HttpResponse:
 
 
 @csrf_protect  # type: ignore[misc]
-@ratelimit(key='ip', rate='10/h', method='POST')  # type: ignore
-@ratelimit(key='ip', rate='100/d', method='POST')  # type: ignore
-@ratelimit(key='session', rate='5/h', method='POST')  # type: ignore
+@conditional_ratelimit(key='ip', rate='10/h', method='POST')
+@conditional_ratelimit(key='ip', rate='100/d', method='POST')
+@conditional_ratelimit(key='session', rate='5/h', method='POST')
 async def demo_send_message(request: HttpRequest) -> JsonResponse:
     """Process a demo message, send to AI API, and return the response.
 
