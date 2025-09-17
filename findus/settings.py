@@ -239,11 +239,12 @@ SESSION_SAVE_EVERY_REQUEST = True
 # ---------------------------------------------------------------------------
 # Cache Configuration for Rate Limiting
 # ---------------------------------------------------------------------------
-# Use memcached-like cache for rate limiting in production, dummy cache in development
+# Use custom database cache with atomic increment support for rate limiting
+# For production with heavy load, consider Redis for better performance
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'unique-snowflake',
+        'BACKEND': 'findus.cache_backends.RateLimitDatabaseCache',
+        'LOCATION': 'rate_limit_cache_table',
     }
 }
 
