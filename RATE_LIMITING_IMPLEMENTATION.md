@@ -27,7 +27,7 @@ Rate limiting is applied to these endpoints:
 
 - **django-ratelimit** - Rate limiting library
 - **Database sessions** - Session storage for rate limiting keys
-- **LocMemCache** - Local memory cache backend (development)
+- **Custom database cache** - Database-backed cache with atomic increment support
 
 ### 4. Frontend Error Handling
 
@@ -40,11 +40,11 @@ Both chat interfaces (`chat.html` and `demo_chat.html`) include JavaScript error
 
 #### Settings (`findus/settings.py`)
 ```python
-# Rate limiting cache configuration
+# Rate limiting cache configuration - custom database cache with atomic increment
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'unique-snowflake',
+        'BACKEND': 'findus.cache_backends.RateLimitDatabaseCache',
+        'LOCATION': 'rate_limit_cache_table',
     }
 }
 
@@ -53,6 +53,9 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 86400  # 24 hours
 SESSION_SAVE_EVERY_REQUEST = True
 ```
+
+#### Custom Cache Backend (`findus/cache_backends.py`)
+Custom database cache backend that provides atomic increment operations required by django-ratelimit.
 
 #### Middleware (`findus/ratelimit_middleware.py`)
 Custom middleware to catch `Ratelimited` exceptions and return proper JSON responses.
@@ -79,10 +82,10 @@ With HTTP status code 429.
 
 ### Cache Backend
 
-For production deployment, replace the `LocMemCache` with a shared cache backend like Redis or Memcached:
+The current implementation uses a custom database cache backend that works without Redis. For high-traffic production deployments, you can optionally upgrade to Redis for better performance:
 
 ```python
-# Production cache configuration (example with Redis)
+# Optional: High-performance Redis configuration for heavy load
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
@@ -96,10 +99,16 @@ CACHES = {
 
 ### Heroku Deployment
 
-For Heroku deployment with Redis:
+The current implementation works on Heroku out-of-the-box using the database cache. For optional Redis optimization:
 1. Add Redis addon: `heroku addons:create heroku-redis:mini`
 2. Install django-redis: `uv add django-redis`
 3. Update cache configuration to use `REDIS_URL` environment variable
+
+**Setup Commands:**
+```bash
+# Create cache table during deployment
+heroku run python manage.py createcachetable rate_limit_cache_table
+```
 
 ## Benefits
 
@@ -110,12 +119,13 @@ For Heroku deployment with Redis:
 
 ## Testing
 
-Due to cache backend limitations in development, comprehensive testing should be done in a production-like environment with Redis or Memcached.
+Rate limiting is now fully functional in development using the custom database cache backend. Test by making multiple rapid requests to `/send/` or `/demo/send/` endpoints.
 
 ## Files Modified
 
 - `chat/views.py` - Added rate limiting decorators and error handling
 - `findus/settings.py` - Added cache and session configuration
+- `findus/cache_backends.py` - Custom database cache with atomic increment support
 - `findus/ratelimit_middleware.py` - Created middleware for exception handling
 - `chat/templates/chat/chat.html` - Added frontend error handling
 - `chat/templates/chat/demo_chat.html` - Added frontend error handling
