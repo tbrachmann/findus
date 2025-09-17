@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     # Third-party apps
     'django_extensions',
+    'django_ratelimit',
     'webpack_loader',
     # Local apps
     'chat',
@@ -70,6 +71,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'findus.ratelimit_middleware.RateLimitMiddleware',
 ]
 
 ROOT_URLCONF = 'findus.urls'
@@ -225,6 +227,25 @@ LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
 # After logging out, users are returned to the login page.
 LOGOUT_REDIRECT_URL = 'login'
+
+# ---------------------------------------------------------------------------
+# Session Configuration for Rate Limiting
+# ---------------------------------------------------------------------------
+# Use database-based sessions for rate limiting instead of cookie-based
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_COOKIE_AGE = 86400  # 24 hours
+SESSION_SAVE_EVERY_REQUEST = True
+
+# ---------------------------------------------------------------------------
+# Cache Configuration for Rate Limiting
+# ---------------------------------------------------------------------------
+# Use memcached-like cache for rate limiting in production, dummy cache in development
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
 
 # ---------------------------------------------------------------------------
 # Webpack Loader Configuration

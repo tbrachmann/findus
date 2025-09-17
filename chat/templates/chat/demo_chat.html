@@ -420,7 +420,15 @@
                     },
                     body: formData
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (response.status === 429) {
+                        // Rate limit exceeded
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Rate limit exceeded. Please wait before sending another message.');
+                        });
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     // Hide typing indicator
                     typingIndicator.style.display = 'none';
