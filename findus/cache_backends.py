@@ -11,25 +11,28 @@ class RateLimitDatabaseCache(DatabaseCache):
 
     def incr(self, key: str, delta: int = 1, version: Optional[int] = None) -> int:
         """Increment cache value atomically using database transactions."""
-        key = self.make_key(key, version=version)
-        self.validate_key(key)
+        # Get the raw key (original, not transformed)
+        raw_key = key
+        # Make the key for database storage
+        db_key = self.make_key(key, version=version)
+        self.validate_key(db_key)
 
         with transaction.atomic():
             try:
-                # Try to get the current value
-                current_value = self.get(key, version=version)
+                # Try to get the current value using raw API
+                current_value = super().get(raw_key, version=version)
                 if current_value is None:
                     # Key doesn't exist, set it to delta
-                    self.set(key, delta, version=version)
+                    super().set(raw_key, delta, version=version)
                     return delta
                 else:
                     # Key exists, increment it
                     new_value = int(current_value) + delta
-                    self.set(key, new_value, version=version)
+                    super().set(raw_key, new_value, version=version)
                     return new_value
             except (ValueError, TypeError):
                 # Value is not an integer, set it to delta
-                self.set(key, delta, version=version)
+                super().set(raw_key, delta, version=version)
                 return delta
 
     def decr(self, key: str, delta: int = 1, version: Optional[int] = None) -> int:
