@@ -15,6 +15,7 @@ from django.shortcuts import render, redirect, aget_object_or_404
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_protect
+from django_ratelimit.decorators import ratelimit
 
 from .models import ChatMessage, Conversation, AfterActionReport
 from .ai_service import ai_service
@@ -189,6 +190,9 @@ async def new_conversation(request: HttpRequest) -> HttpResponse:
 
 
 @login_required  # type: ignore
+@ratelimit(key='ip', rate='10/h', method='POST')  # type: ignore
+@ratelimit(key='ip', rate='100/d', method='POST')  # type: ignore
+@ratelimit(key='session', rate='5/h', method='POST')  # type: ignore
 async def send_message(request: HttpRequest) -> JsonResponse:
     """
     Process a user message, send to Gemini API, and return the response.
@@ -441,6 +445,9 @@ async def demo_chat_view(request: HttpRequest) -> HttpResponse:
 
 
 @csrf_protect  # type: ignore[misc]
+@ratelimit(key='ip', rate='10/h', method='POST')  # type: ignore
+@ratelimit(key='ip', rate='100/d', method='POST')  # type: ignore
+@ratelimit(key='session', rate='5/h', method='POST')  # type: ignore
 async def demo_send_message(request: HttpRequest) -> JsonResponse:
     """Process a demo message, send to AI API, and return the response.
 
