@@ -14,3 +14,5 @@ only skip mypy checks if there is no other alternative.
 never use --no-verify on git commits
 
 if you change some sort of configuration like databases, LLMs, or frameworks - please update README.md with your commit. If this change to configuration will mean a change for the deployment process, then make sure it will run on Heroku by updating the Heroku-specific config files.
+
+Deploying means deploying to heroku using `git push heroku main`. Any infra changes should be reflected onto heroku. List what commands you'll run to create that infra.
