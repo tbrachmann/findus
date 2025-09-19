@@ -3,23 +3,23 @@
   "assets": {
     "main.a57400c00fe121554564.js": {
       "name": "main.a57400c00fe121554564.js",
-      "path": "/Users/tobiasrb/.claude-squad/worktrees/implement-llm-ui_18659c7295392de0/chat/static/chat/js/main.a57400c00fe121554564.js",
+      "path": "/Users/tobiasrb/.claude-squad/worktrees/index-questions_1866bca1326961a8/chat/static/chat/js/main.a57400c00fe121554564.js",
       "publicPath": "/static/chat/js/main.a57400c00fe121554564.js"
     },
-    "vendors.18ceb47c92e65e3faca5.js": {
-      "name": "vendors.18ceb47c92e65e3faca5.js",
-      "path": "/Users/tobiasrb/.claude-squad/worktrees/implement-llm-ui_18659c7295392de0/chat/static/chat/js/vendors.18ceb47c92e65e3faca5.js",
-      "publicPath": "/static/chat/js/vendors.18ceb47c92e65e3faca5.js"
+    "vendors.44f837773d2f6db98f8b.js": {
+      "name": "vendors.44f837773d2f6db98f8b.js",
+      "path": "/Users/tobiasrb/.claude-squad/worktrees/index-questions_1866bca1326961a8/chat/static/chat/js/vendors.44f837773d2f6db98f8b.js",
+      "publicPath": "/static/chat/js/vendors.44f837773d2f6db98f8b.js"
     },
-    "vendors.18ceb47c92e65e3faca5.js.LICENSE.txt": {
-      "name": "vendors.18ceb47c92e65e3faca5.js.LICENSE.txt",
-      "path": "/Users/tobiasrb/.claude-squad/worktrees/implement-llm-ui_18659c7295392de0/chat/static/chat/js/vendors.18ceb47c92e65e3faca5.js.LICENSE.txt",
-      "publicPath": "/static/chat/js/vendors.18ceb47c92e65e3faca5.js.LICENSE.txt"
+    "vendors.44f837773d2f6db98f8b.js.LICENSE.txt": {
+      "name": "vendors.44f837773d2f6db98f8b.js.LICENSE.txt",
+      "path": "/Users/tobiasrb/.claude-squad/worktrees/index-questions_1866bca1326961a8/chat/static/chat/js/vendors.44f837773d2f6db98f8b.js.LICENSE.txt",
+      "publicPath": "/static/chat/js/vendors.44f837773d2f6db98f8b.js.LICENSE.txt"
     }
   },
   "chunks": {
     "main": [
-      "vendors.18ceb47c92e65e3faca5.js",
+      "vendors.44f837773d2f6db98f8b.js",
       "main.a57400c00fe121554564.js"
     ]
   },

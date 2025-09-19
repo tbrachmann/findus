@@ -29,16 +29,34 @@ from .ai_service import ai_service
 F = TypeVar('F', bound=Callable[..., Any])
 
 
+def get_session_key(group: str, request: HttpRequest) -> str:
+    """Get session key for rate limiting."""
+    if not hasattr(request, 'session'):
+        return 'anonymous'
+    return request.session.session_key or 'anonymous'
+
+
 def conditional_ratelimit(
     key: str, rate: str, method: str = 'POST'
 ) -> Callable[[F], F]:
-    """Apply rate limiting only when not in test mode."""
+    """Apply rate limiting only when not in test mode or when rate limiting is enabled."""
 
     def decorator(func: F) -> F:
         # Check if we're running tests
         if 'test' in sys.argv or hasattr(sys, '_called_from_test'):
             return func  # Skip rate limiting during tests
-        return ratelimit(key=key, rate=rate, method=method)(func)  # type: ignore
+
+        # Check if rate limiting is disabled via environment variable
+        from django.conf import settings
+
+        if getattr(settings, 'DISABLE_RATELIMIT', False):
+            return func  # Skip rate limiting when disabled
+
+        # Handle session key specially
+        if key == 'session':
+            return ratelimit(key=get_session_key, rate=rate, method=method)(func)  # type: ignore
+        else:
+            return ratelimit(key=key, rate=rate, method=method)(func)  # type: ignore
 
     return decorator
 

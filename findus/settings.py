@@ -98,8 +98,9 @@ ASGI_APPLICATION = 'findus.asgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Use PostgreSQL on Heroku, SQLite locally
+# Use PostgreSQL - mandatory for both production and local development
 if os.getenv('DATABASE_URL'):
+    # Production/Heroku PostgreSQL
     DATABASES = {
         'default': dj_database_url.config(
             default=os.getenv('DATABASE_URL'),
@@ -108,10 +109,33 @@ if os.getenv('DATABASE_URL'):
         )
     }
 else:
+    # Local development PostgreSQL - required
+    postgres_db = os.getenv('POSTGRES_DB')
+    postgres_user = os.getenv('POSTGRES_USER')
+    postgres_password = os.getenv('POSTGRES_PASSWORD')
+    postgres_host = os.getenv('POSTGRES_HOST', 'localhost')
+    postgres_port = os.getenv('POSTGRES_PORT', '5432')
+
+    if not all([postgres_db, postgres_user, postgres_password]):
+        raise RuntimeError(
+            "PostgreSQL configuration required for local development.\n"
+            "Set these environment variables in your .env file:\n"
+            "POSTGRES_DB=findus\n"
+            "POSTGRES_USER=findus\n"
+            "POSTGRES_PASSWORD=your_password\n"
+            "POSTGRES_HOST=localhost  # optional, defaults to localhost\n"
+            "POSTGRES_PORT=5432       # optional, defaults to 5432\n\n"
+            "Start PostgreSQL with: docker-compose up -d postgres"
+        )
+
     DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': postgres_db,
+            'USER': postgres_user,
+            'PASSWORD': postgres_password,
+            'HOST': postgres_host,
+            'PORT': postgres_port,
             'CONN_MAX_AGE': 0,  # Disable persistent connections for async
         }
     }
@@ -235,6 +259,12 @@ LOGOUT_REDIRECT_URL = 'login'
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 86400  # 24 hours
 SESSION_SAVE_EVERY_REQUEST = True
+
+# ---------------------------------------------------------------------------
+# Rate Limiting Configuration
+# ---------------------------------------------------------------------------
+# Disable rate limiting for local development (enabled by default in production)
+DISABLE_RATELIMIT = os.getenv('DISABLE_RATELIMIT', 'True').lower() == 'true'
 
 # ---------------------------------------------------------------------------
 # Cache Configuration for Rate Limiting
