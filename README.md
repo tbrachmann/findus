@@ -253,15 +253,41 @@ uv run pre-commit run --all-files
 
 ### Running tests
 
+#### Complete Test Suite
 ```bash
+# Run all tests (unit + integration)
+make test
+# or
+uv run python test_integration.py
+```
+
+#### Unit Tests Only
+```bash
+make test-unit
+# or
 uv run python manage.py test
 ```
 
-The test suite includes comprehensive async tests covering:
-- Async view functionality
-- Background task processing
-- AI service integration (mocked)
-- Database operations with async ORM
+#### Integration Tests Only
+```bash
+# Requires Django server running on localhost:8000
+make server  # In one terminal
+make test-integration  # In another terminal
+# or
+uv run python playwright_integration_test.py
+```
+
+The test suite includes:
+- **Unit Tests**: Comprehensive async tests covering language learning functionality, database operations, vector similarity search, and AI service integration (mocked)
+- **Integration Tests**: Playwright browser automation testing the complete user journey from login through message sending and language analysis
+
+#### Continuous Integration
+
+GitHub Actions automatically runs the complete test suite on:
+- Push to `main` or `develop` branches
+- Pull requests to `main`
+
+The CI pipeline includes PostgreSQL with pgvector, Playwright browser testing, and uploads screenshots on test failures for debugging.
 
 ---
 
