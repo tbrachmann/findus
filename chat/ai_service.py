@@ -378,23 +378,24 @@ class AIService:
         language_code: str,
         analysis_language_code: str,
         current_level: str,
-        concept_names: List[str],
     ) -> str:
-        """Create system prompt for structured grammar analysis."""
+        """Create system prompt for structured grammar analysis with organic concept discovery."""
         language_name = self._get_language_name(language_code)
         feedback_language = self._get_language_name(analysis_language_code)
 
         return (
             f"You are an expert {language_name} teacher providing detailed "
             f"analysis for a {current_level} level student.\n\n"
-            f"Analyze the student's {language_name} text for:\n"
-            "1. Grammar concept usage and accuracy\n"
-            "2. Specific errors with corrections\n"
-            "3. Overall proficiency assessment\n"
-            "4. Learning recommendations\n\n"
-            f"Focus on these key concepts for this level: "
-            f"{', '.join(concept_names[:15])}\n\n"
-            f"Provide feedback in {feedback_language}. Be constructive and specific.\n"
+            f"Analyze the student's {language_name} text and identify what grammar concepts "
+            f"are actually present in their writing. Focus on:\n\n"
+            "1. **Grammar concepts observed**: What specific grammar concepts do you see? "
+            f"(e.g., verb tenses, word order, articles, prepositions, sentence structure, etc.)\n"
+            "2. **Concept usage accuracy**: How well did they use each concept?\n"
+            "3. **Specific errors with corrections**: Point out mistakes and provide corrections\n"
+            "4. **Overall proficiency assessment**: Based on what you observe\n"
+            "5. **Learning recommendations**: What should they focus on next?\n\n"
+            f"Discover the grammar organically from their actual text - don't assume concepts "
+            f"that aren't clearly demonstrated. Provide feedback in {feedback_language}.\n"
             "Rate confidence levels based on how clear the evidence is in the text.\n"
             "Estimate CEFR levels conservatively - only suggest higher levels "
             "with strong evidence."
