@@ -106,38 +106,6 @@ class StructuredGrammarAnalysis(BaseModel):
         ..., description="Analysis of grammar concepts attempted"
     )
 
-    # Error analysis
-    errors: List[GrammarError] = Field(..., description="Detailed error analysis")
-
-    # Summary metrics
-    total_errors: int = Field(..., ge=0, description="Total number of errors found")
-    error_rate: float = Field(
-        ..., ge=0.0, le=1.0, description="Errors per word/sentence"
-    )
-    accuracy_score: float = Field(
-        ..., ge=0.0, le=1.0, description="Overall accuracy (1 - error_rate)"
-    )
-
-    # Learning recommendations
-    strengths: List[str] = Field(..., description="Areas where the user performed well")
-    weaknesses: List[str] = Field(..., description="Areas needing improvement")
-    next_concepts: List[str] = Field(
-        ..., description="Grammar concepts to focus on next"
-    )
-    practice_suggestions: List[str] = Field(
-        ..., description="Specific practice recommendations"
-    )
-
-    # Metadata
-    analysis_language: str = Field(
-        ..., description="Language code for feedback (en, es, de)"
-    )
-    target_language: str = Field(..., description="Language being learned (en, es, de)")
-    text_length: int = Field(
-        ..., ge=0, description="Length of analyzed text in characters"
-    )
-    word_count: int = Field(..., ge=0, description="Number of words in the text")
-
 
 class ConceptMasteryUpdate(BaseModel):
     """Data for updating a user's concept mastery based on performance."""

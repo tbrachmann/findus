@@ -91,25 +91,12 @@ class Conversation(models.Model):
         combined_text = "\n".join([msg async for msg in user_messages])
 
         # Run structured grammar analysis
-        analysis = await ai_service.analyze_grammar_structured(
+        return await ai_service.analyze_grammar_structured(
             text=combined_text,
             user=self.user,
             language_code=self.language,
             analysis_language_code=self.analysis_language,
         )
-
-        # Update user proficiency based on analysis
-        await ai_service.update_user_proficiency(
-            analysis=analysis, user=self.user, language_code=self.language
-        )
-
-        return {
-            "status": "completed",
-            "concepts_analyzed": len(analysis.concepts_used),
-            "errors_found": len(analysis.errors),
-            "proficiency_level": analysis.proficiency.estimated_level.value,
-            "accuracy_score": analysis.accuracy_score,
-        }
 
 
 class ChatMessage(models.Model):

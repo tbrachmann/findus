@@ -8,8 +8,11 @@ Gemini API calls, with automatic logging to Logfire for observability.
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import AgentRunError
 from pydantic_ai.models.google import GoogleModel
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from django.contrib.auth.models import User
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .analysis_models import (
     StructuredGrammarAnalysis,
@@ -373,6 +376,89 @@ class AIService:
             if error.severity in [ErrorSeverity.MODERATE, ErrorSeverity.SEVERE]:
                 await self._create_or_update_error_pattern(user, error, language_code)
 
+    async def find_or_create_grammar_concept(
+        self,
+        concept_name: str,
+        concept_description: str,
+        language_code: str,
+        cefr_level: str = "A1",
+        similarity_threshold: float = 0.85,
+    ) -> Tuple[GrammarConcept, bool]:
+        """
+        Find existing similar grammar concept or create new one.
+
+        Uses semantic similarity to avoid duplicates from inconsistent LLM naming.
+
+        Args:
+            concept_name: Name of the grammar concept
+            concept_description: Description of the concept
+            language_code: Target language
+            cefr_level: CEFR level for the concept
+            similarity_threshold: Minimum similarity to consider a match (0.85 = high similarity)
+
+        Returns:
+            Tuple of (GrammarConcept, created: bool)
+        """
+        from .embedding_service import embedding_service
+        from .models import GrammarConcept
+
+        # First try exact name match (fast path)
+        existing_concept = await GrammarConcept.objects.filter(
+            name__iexact=concept_name.strip(), language=language_code
+        ).afirst()
+
+        if existing_concept:
+            logger.info(f"Found exact match for concept: {concept_name}")
+            return existing_concept, False
+
+        # Generate embedding for similarity search
+        combined_text = f"{concept_name}: {concept_description}"
+        query_embedding = await embedding_service.generate_embedding(
+            combined_text, language_code
+        )
+
+        # Search for similar concepts using embeddings
+        similar_concepts = GrammarConcept.objects.similarity_search(
+            vector_field='embedding',
+            query_vector=query_embedding,
+            limit=5,
+            threshold=similarity_threshold,
+        ).filter(language=language_code)
+
+        # Check if any similar concept is close enough
+        async for concept in similar_concepts:
+            similarity_score = getattr(concept, 'similarity', 0.0)
+            if similarity_score >= similarity_threshold:
+                logger.info(
+                    f"Found similar concept '{concept.name}' (similarity: {similarity_score:.3f}) "
+                    f"for '{concept_name}'"
+                )
+                return concept, False
+
+        # No similar concept found, create new one
+        logger.info(f"Creating new concept: {concept_name}")
+
+        # Generate embedding for the new concept
+        concept_embedding = await embedding_service.generate_concept_embedding(
+            concept_name, concept_description, language_code
+        )
+
+        # Create new concept
+        new_concept = await GrammarConcept.objects.acreate(
+            name=concept_name.strip(),
+            description=concept_description.strip(),
+            language=language_code,
+            cefr_level=cefr_level,
+            embedding=concept_embedding,
+            complexity_score=0.5,  # Default complexity
+            tags=[],  # Start with empty tags
+        )
+
+        logger.info(
+            f"Created new grammar concept: {concept_name} (ID: {new_concept.id})"
+        )
+        return new_concept, True
+
     def _create_structured_analysis_prompt(
         self,
         language_code: str,
@@ -481,16 +567,18 @@ class AIService:
         language_code: str,
     ) -> None:
         """Update or create concept mastery based on usage analysis."""
-        # Find or create the grammar concept
-        concept, _ = await GrammarConcept.objects.aget_or_create(
-            name=concept_usage.concept_name,
-            language=language_code,
-            defaults={
-                'description': concept_usage.concept_description,
-                'cefr_level': 'A1',  # Default level, could be improved later
-                'complexity_score': concept_usage.user_rating,
-            },
+        # Find or create the grammar concept using semantic deduplication
+        concept, created = await self.find_or_create_grammar_concept(
+            concept_name=concept_usage.concept_name,
+            concept_description=concept_usage.concept_description,
+            language_code=language_code,
+            cefr_level='A1',  # Default level, could be improved later
         )
+
+        if created:
+            logger.info(f"Created new grammar concept: {concept.name}")
+        else:
+            logger.info(f"Using existing concept: {concept.name}")
 
         # Get or create mastery record
         mastery, _ = await ConceptMastery.objects.aget_or_create(
