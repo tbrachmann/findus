@@ -46,30 +46,22 @@ class EmbeddingService:
         # if cached_embedding:
         #     return cached_embedding
 
-        try:
-            # Use Google's embedding model in a thread to avoid blocking
-            response = await asyncio.to_thread(
-                lambda: self.client.models.embed_content(
-                    model=self.model_name, contents=text
-                )
+        # Use Google's embedding model in a thread to avoid blocking
+        response = await asyncio.to_thread(
+            lambda: self.client.models.embed_content(
+                model=self.model_name, contents=text
             )
+        )
 
-            embedding = response.embeddings[0].values
+        embedding = response.embeddings[0].values
 
-            # # Cache the result
-            # cache.set(cache_key, embedding, self.cache_timeout)
+        # # Cache the result
+        # cache.set(cache_key, embedding, self.cache_timeout)
 
-            logger.info(
-                f"Generated embedding for text: {text[:50]}... (dimension: {len(embedding)})"
-            )
-            return embedding
-
-        except Exception as e:
-            logger.error(
-                f"Failed to generate embedding for text: {text[:50]}... Error: {e}"
-            )
-            # Return a zero vector as fallback
-            return [0.0] * 768
+        logger.info(
+            f"Generated embedding for text: {text[:50]}... (dimension: {len(embedding)})"
+        )
+        return embedding
 
     async def generate_concept_embedding(
         self, concept_name: str, description: str, language: str = "en"
@@ -132,26 +124,20 @@ class EmbeddingService:
 
         # Use async iteration - this is the proper way
         async for concept in concepts:
-            try:
-                if not force_update and concept.embedding:
-                    continue
+            if not force_update and concept.embedding:
+                continue
 
-                embedding = await self.generate_concept_embedding(
-                    concept_name=concept.name,
-                    description=concept.description,
-                    language=concept.language,
-                )
+            embedding = await self.generate_concept_embedding(
+                concept_name=concept.name,
+                description=concept.description,
+                language=concept.language,
+            )
 
-                concept.embedding = embedding
-                await concept.asave()  # This should work fine with pgvector
-                updated_count += 1
+            concept.embedding = embedding
+            await concept.asave()  # This should work fine with pgvector
+            updated_count += 1
 
-                logger.info(f"Updated embedding for concept: {concept.name}")
-
-            except Exception as e:
-                logger.error(
-                    f"Failed to update embedding for concept {concept.name}: {e}"
-                )
+            logger.info(f"Updated embedding for concept: {concept.name}")
 
         return updated_count
 

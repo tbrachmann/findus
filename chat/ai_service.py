@@ -219,41 +219,29 @@ class AIService:
         Returns:
             Structured analysis with concept scores, errors, and recommendations
         """
-        try:
-            # Get user's language profile for context
-            language_profile = await LanguageProfile.objects.filter(
-                user=user, target_language=language_code
-            ).afirst()
+        # Get user's language profile for context
+        language_profile = await LanguageProfile.objects.filter(
+            user=user, target_language=language_code
+        ).afirst()
 
-            current_level = language_profile.current_level if language_profile else 'A1'
+        current_level = language_profile.current_level if language_profile else 'A1'
 
-            # Get relevant grammar concepts for this user's level
-            concepts = await self._get_relevant_concepts(language_code, current_level)
-            concept_names = [concept.name for concept in concepts]
+        # Create structured analysis agent
+        analysis_agent = Agent(
+            model=self.model,
+            result_type=StructuredGrammarAnalysis,
+            system_prompt=self._create_structured_analysis_prompt(
+                language_code, analysis_language_code, current_level
+            ),
+        )
 
-            # Create structured analysis agent
-            analysis_agent = Agent(
-                model=self.model,
-                result_type=StructuredGrammarAnalysis,
-                system_prompt=self._create_structured_analysis_prompt(
-                    language_code, analysis_language_code, current_level, concept_names
-                ),
-            )
+        # Run structured analysis
+        result = await analysis_agent.run(
+            f"Analyze this {self._get_language_name(language_code)} text: \"{text}\"\n\n"
+            f"User's current level: {current_level}\n"
+        )
 
-            # Run structured analysis
-            result = await analysis_agent.run(
-                f"Analyze this {self._get_language_name(language_code)} text: \"{text}\"\n\n"
-                f"User's current level: {current_level}\n"
-                f"Focus on these grammar concepts: {', '.join(concept_names[:10])}"
-            )
-
-            return result.output
-
-        except Exception:
-            # Return fallback analysis if structured analysis fails
-            return await self._create_fallback_analysis(
-                text, language_code, analysis_language_code
-            )
+        return result.output
 
     async def generate_adaptive_prompt(
         self,
@@ -272,62 +260,55 @@ class AIService:
         Returns:
             Adaptive prompt with targeted practice opportunities
         """
-        try:
-            # Get user's language profile and recent performance
-            language_profile = await LanguageProfile.objects.filter(
-                user=user, target_language=language_code
-            ).afirst()
+        # Get user's language profile and recent performance
+        language_profile = await LanguageProfile.objects.filter(
+            user=user, target_language=language_code
+        ).afirst()
 
-            if not language_profile:
-                # Create basic profile for new users
-                language_profile = LanguageProfile(
-                    user=user, target_language=language_code, current_level='A1'
-                )
-
-            # Get concepts that need review (spaced repetition)
-            concepts_for_review = await self._get_concepts_for_review(
-                user, language_code
+        if not language_profile:
+            # Create basic profile for new users
+            language_profile = LanguageProfile(
+                user=user, target_language=language_code, current_level='A1'
             )
 
-            # Get new concepts to introduce
-            new_concepts = await self._get_new_concepts(
-                user, language_code, language_profile.current_level
-            )
+        # Get concepts that need review (spaced repetition)
+        concepts_for_review = await self._get_concepts_for_review(user, language_code)
 
-            # Create adaptive prompt agent
-            prompt_agent = Agent(
-                model=self.model,
-                result_type=AdaptivePrompt,
-                system_prompt=self._create_adaptive_prompt_system_prompt(
-                    language_code, language_profile.current_level
-                ),
-            )
+        # Get new concepts to introduce
+        new_concepts = await self._get_new_concepts(
+            user, language_code, language_profile.current_level
+        )
 
-            # Build context for prompt generation
-            context = {
-                'current_level': language_profile.current_level,
-                'weak_areas': language_profile.weak_areas,
-                'strong_areas': language_profile.strong_areas,
-                'learning_goals': language_profile.learning_goals,
-                'review_concepts': [c.concept.name for c in concepts_for_review],
-                'new_concepts': [c.name for c in new_concepts],
-                'session_context': session_context or {},
-            }
+        # Create adaptive prompt agent
+        prompt_agent = Agent(
+            model=self.model,
+            result_type=AdaptivePrompt,
+            system_prompt=self._create_adaptive_prompt_system_prompt(
+                language_code, language_profile.current_level
+            ),
+        )
 
-            result = await prompt_agent.run(
-                f"Generate an adaptive conversation prompt for a {language_profile.current_level} "
-                f"{self._get_language_name(language_code)} learner.\n\n"
-                f"Review concepts: {', '.join(context['review_concepts'][:5])}\n"
-                f"New concepts: {', '.join(context['new_concepts'][:3])}\n"
-                f"Weak areas: {', '.join(context['weak_areas'])}\n"
-                f"Learning goals: {', '.join(context['learning_goals'])}"
-            )
+        # Build context for prompt generation
+        context = {
+            'current_level': language_profile.current_level,
+            'weak_areas': language_profile.weak_areas,
+            'strong_areas': language_profile.strong_areas,
+            'learning_goals': language_profile.learning_goals,
+            'review_concepts': [c.concept.name for c in concepts_for_review],
+            'new_concepts': [c.name for c in new_concepts],
+            'session_context': session_context or {},
+        }
 
-            return result.output
+        result = await prompt_agent.run(
+            f"Generate an adaptive conversation prompt for a {language_profile.current_level} "
+            f"{self._get_language_name(language_code)} learner.\n\n"
+            f"Review concepts: {', '.join(context['review_concepts'][:5])}\n"
+            f"New concepts: {', '.join(context['new_concepts'][:3])}\n"
+            f"Weak areas: {', '.join(context['weak_areas'])}\n"
+            f"Learning goals: {', '.join(context['learning_goals'])}"
+        )
 
-        except Exception:
-            # Return fallback prompt if generation fails
-            return await self._create_fallback_prompt(language_code, 'A1')
+        return result.output
 
     async def update_user_proficiency(
         self, analysis: StructuredGrammarAnalysis, user: User, language_code: str
@@ -340,65 +321,57 @@ class AIService:
             user: User to update
             language_code: Target language
         """
-        try:
-            # Get or create language profile
-            language_profile, created = await LanguageProfile.objects.aget_or_create(
-                user=user,
-                target_language=language_code,
-                defaults={
-                    'current_level': analysis.proficiency.estimated_level.value,
-                    'proficiency_score': analysis.accuracy_score,
-                    'grammar_accuracy': analysis.accuracy_score,
-                    'fluency_score': analysis.proficiency.fluency_score,
-                },
+        # Get or create language profile
+        language_profile, created = await LanguageProfile.objects.aget_or_create(
+            user=user,
+            target_language=language_code,
+            defaults={
+                'current_level': analysis.proficiency.estimated_level.value,
+                'proficiency_score': analysis.accuracy_score,
+                'grammar_accuracy': analysis.accuracy_score,
+                'fluency_score': analysis.proficiency.fluency_score,
+            },
+        )
+
+        if not created:
+            # Update existing profile with weighted average
+            language_profile.grammar_accuracy = (
+                language_profile.grammar_accuracy * 0.8 + analysis.accuracy_score * 0.2
+            )
+            language_profile.fluency_score = (
+                language_profile.fluency_score * 0.8
+                + analysis.proficiency.fluency_score * 0.2
             )
 
-            if not created:
-                # Update existing profile with weighted average
-                language_profile.grammar_accuracy = (
-                    language_profile.grammar_accuracy * 0.8
-                    + analysis.accuracy_score * 0.2
-                )
-                language_profile.fluency_score = (
-                    language_profile.fluency_score * 0.8
-                    + analysis.proficiency.fluency_score * 0.2
-                )
+            # Update proficiency score
+            language_profile.proficiency_score = (
+                language_profile.grammar_accuracy * 0.6
+                + language_profile.fluency_score * 0.4
+            )
 
-                # Update proficiency score
-                language_profile.proficiency_score = (
-                    language_profile.grammar_accuracy * 0.6
-                    + language_profile.fluency_score * 0.4
-                )
+            # Update weak/strong areas
+            language_profile.weak_areas = list(
+                set(language_profile.weak_areas + analysis.weaknesses)
+            )[
+                :10
+            ]  # Keep only top 10
 
-                # Update weak/strong areas
-                language_profile.weak_areas = list(
-                    set(language_profile.weak_areas + analysis.weaknesses)
-                )[
-                    :10
-                ]  # Keep only top 10
+            language_profile.strong_areas = list(
+                set(language_profile.strong_areas + analysis.strengths)
+            )[
+                :10
+            ]  # Keep only top 10
 
-                language_profile.strong_areas = list(
-                    set(language_profile.strong_areas + analysis.strengths)
-                )[
-                    :10
-                ]  # Keep only top 10
+            await language_profile.asave()
 
-                await language_profile.asave()
+        # Update concept masteries
+        for concept_usage in analysis.concepts_used:
+            await self._update_concept_mastery(user, concept_usage, language_code)
 
-            # Update concept masteries
-            for concept_usage in analysis.concepts_used:
-                await self._update_concept_mastery(user, concept_usage, language_code)
-
-            # Create error patterns for persistent errors
-            for error in analysis.errors:
-                if error.severity in [ErrorSeverity.MODERATE, ErrorSeverity.SEVERE]:
-                    await self._create_or_update_error_pattern(
-                        user, error, language_code
-                    )
-
-        except Exception:
-            # Log error but don't fail the entire analysis process
-            pass
+        # Create error patterns for persistent errors
+        for error in analysis.errors:
+            if error.severity in [ErrorSeverity.MODERATE, ErrorSeverity.SEVERE]:
+                await self._create_or_update_error_pattern(user, error, language_code)
 
     def _create_structured_analysis_prompt(
         self,
@@ -504,63 +477,55 @@ class AIService:
         language_code: str,
     ) -> None:
         """Update or create concept mastery based on usage analysis."""
-        try:
-            # Find the grammar concept
-            concept = await GrammarConcept.objects.filter(
-                name=concept_usage.concept_name, language=language_code
-            ).afirst()
+        # Find the grammar concept
+        concept = await GrammarConcept.objects.filter(
+            name=concept_usage.concept_name, language=language_code
+        ).afirst()
 
-            if not concept:
-                return  # Skip if concept not found
+        if not concept:
+            return  # Skip if concept not found
 
-            # Get or create mastery record
-            mastery, _ = await ConceptMastery.objects.aget_or_create(
-                user=user,
-                concept=concept,
-                defaults={
-                    'mastery_score': 0.5 if concept_usage.correct else 0.1,
-                    'confidence_level': concept_usage.confidence,
-                },
-            )
+        # Get or create mastery record
+        mastery, _ = await ConceptMastery.objects.aget_or_create(
+            user=user,
+            concept=concept,
+            defaults={
+                'mastery_score': 0.5 if concept_usage.correct else 0.1,
+                'confidence_level': concept_usage.confidence,
+            },
+        )
 
-            # Update performance
-            difficulty = (
-                0.5  # Default difficulty, could be calculated based on level difference
-            )
-            mastery.update_performance(concept_usage.correct, difficulty)
-            await mastery.asave()
-
-        except Exception as e:
-            print(f"Error updating concept mastery: {e}")
+        # Update performance
+        difficulty = (
+            0.5  # Default difficulty, could be calculated based on level difference
+        )
+        mastery.update_performance(concept_usage.correct, difficulty)
+        await mastery.asave()
 
     async def _create_or_update_error_pattern(
         self, user: User, error: Any, _language_code: str  # GrammarError from analysis
     ) -> None:
         """Create or update error pattern for persistent tracking."""
-        try:
-            # Try to find existing error pattern
-            error_pattern = await ErrorPattern.objects.filter(
+        # Try to find existing error pattern
+        error_pattern = await ErrorPattern.objects.filter(
+            user=user,
+            error_type=error.error_type,
+            error_description__icontains=error.original_text,
+        ).afirst()
+
+        if error_pattern:
+            # Update existing pattern
+            error_pattern.add_occurrence(error.original_text, error.corrected_text)
+            await error_pattern.asave()
+        else:
+            # Create new error pattern
+            await ErrorPattern.objects.acreate(
                 user=user,
                 error_type=error.error_type,
-                error_description__icontains=error.original_text,
-            ).afirst()
-
-            if error_pattern:
-                # Update existing pattern
-                error_pattern.add_occurrence(error.original_text, error.corrected_text)
-                await error_pattern.asave()
-            else:
-                # Create new error pattern
-                await ErrorPattern.objects.acreate(
-                    user=user,
-                    error_type=error.error_type,
-                    error_description=error.explanation,
-                    example_errors=[error.original_text],
-                    correction_suggestions=[error.corrected_text],
-                )
-
-        except Exception as e:
-            print(f"Error creating error pattern: {e}")
+                error_description=error.explanation,
+                example_errors=[error.original_text],
+                correction_suggestions=[error.corrected_text],
+            )
 
     async def _create_fallback_analysis(
         self, text: str, language_code: str, analysis_language_code: str
