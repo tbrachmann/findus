@@ -154,25 +154,20 @@ class EmbeddingService:
         """
         import numpy as np
 
-        try:
-            v1 = np.array(vector1)
-            v2 = np.array(vector2)
+        v1 = np.array(vector1)
+        v2 = np.array(vector2)
 
-            # Calculate cosine similarity
-            dot_product = np.dot(v1, v2)
-            norms = np.linalg.norm(v1) * np.linalg.norm(v2)
+        # Calculate cosine similarity
+        dot_product = np.dot(v1, v2)
+        norms = np.linalg.norm(v1) * np.linalg.norm(v2)
 
-            if norms == 0:
-                return 0.0
-
-            similarity = dot_product / norms
-
-            # Normalize to 0-1 range
-            return (similarity + 1) / 2
-
-        except Exception as e:
-            logger.error(f"Failed to calculate similarity: {e}")
+        if norms == 0:
             return 0.0
+
+        similarity = dot_product / norms
+
+        # Normalize to 0-1 range
+        return (similarity + 1) / 2
 
     async def find_similar_concepts(
         self,

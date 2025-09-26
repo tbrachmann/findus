@@ -99,31 +99,26 @@ class LanguageLearningPlaywrightTest:
         """Create test user via Django ORM."""
         print(f"👤 Creating test user: {self.test_username}")
 
-        try:
-            user = User.objects.create_user(
-                username=self.test_username,
-                email=f"{self.test_username}@playwright.test",
-                password=self.test_password,
-                first_name="Playwright",
-                last_name="Tester",
-            )
+        user = User.objects.create_user(
+            username=self.test_username,
+            email=f"{self.test_username}@playwright.test",
+            password=self.test_password,
+            first_name="Playwright",
+            last_name="Tester",
+        )
 
-            # Create language profile
-            lang_profile = LanguageProfile.objects.create(
-                user=user,
-                target_language='en',
-                current_level='A2',
-                proficiency_score=0.4,
-                grammar_accuracy=0.5,
-                total_messages=0,
-            )
+        # Create language profile
+        lang_profile = LanguageProfile.objects.create(
+            user=user,
+            target_language='en',
+            current_level='A2',
+            proficiency_score=0.4,
+            grammar_accuracy=0.5,
+            total_messages=0,
+        )
 
-            print("✅ Test user created successfully")
-            return user, lang_profile
-
-        except Exception as e:
-            print(f"❌ Failed to create test user: {e}")
-            return None, None
+        print("✅ Test user created successfully")
+        return user, lang_profile
 
     def capture_initial_state(self):
         """Capture initial database state."""
@@ -466,8 +461,6 @@ class LanguageLearningPlaywrightTest:
 
         # Create test user
         user, lang_profile = self.create_test_user()
-        if not user:
-            return False
 
         # Capture initial state
         initial_state = self.capture_initial_state()
