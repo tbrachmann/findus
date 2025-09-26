@@ -65,6 +65,52 @@ class Conversation(models.Model):
         username: str = str(self.user.username)
         return f"{str(self.title)} – {username} ({friendly_date})"
 
+    async def analyze_grammar_structured(self):
+        """
+        Run structured grammar analysis on all messages in this conversation.
+
+        This method analyzes the conversation content and updates user proficiency
+        based on the grammar concepts discovered in their messages.
+
+        Returns:
+            dict: Summary of the analysis results
+        """
+        from .ai_service import ai_service
+
+        # Get all user messages from this conversation (message field contains user input)
+        user_messages = (
+            ChatMessage.objects.filter(conversation=self)
+            .select_related('conversation__user')
+            .values_list('message', flat=True)
+        )
+
+        if not user_messages:
+            return {"status": "no_messages", "message": "No user messages found"}
+
+        # Combine all user messages for analysis
+        combined_text = "\n".join([msg async for msg in user_messages])
+
+        # Run structured grammar analysis
+        analysis = await ai_service.analyze_grammar_structured(
+            text=combined_text,
+            user=self.user,
+            language_code=self.language,
+            analysis_language_code=self.analysis_language,
+        )
+
+        # Update user proficiency based on analysis
+        await ai_service.update_user_proficiency(
+            analysis=analysis, user=self.user, language_code=self.language
+        )
+
+        return {
+            "status": "completed",
+            "concepts_analyzed": len(analysis.concepts_used),
+            "errors_found": len(analysis.errors),
+            "proficiency_level": analysis.proficiency.estimated_level.value,
+            "accuracy_score": analysis.accuracy_score,
+        }
+
 
 class ChatMessage(models.Model):
     """

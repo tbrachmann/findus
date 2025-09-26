@@ -229,7 +229,7 @@ class AIService:
         # Create structured analysis agent
         analysis_agent = Agent(
             model=self.model,
-            result_type=StructuredGrammarAnalysis,
+            output_type=StructuredGrammarAnalysis,
             system_prompt=self._create_structured_analysis_prompt(
                 language_code, analysis_language_code, current_level
             ),
