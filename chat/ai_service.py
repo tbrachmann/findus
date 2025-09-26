@@ -387,18 +387,21 @@ class AIService:
             f"You are an expert {language_name} teacher providing detailed "
             f"analysis for a {current_level} level student.\n\n"
             f"Analyze the student's {language_name} text and identify what grammar concepts "
-            f"are actually present in their writing. Focus on:\n\n"
-            "1. **Grammar concepts observed**: What specific grammar concepts do you see? "
-            f"(e.g., verb tenses, word order, articles, prepositions, sentence structure, etc.)\n"
-            "2. **Concept usage accuracy**: How well did they use each concept?\n"
-            "3. **Specific errors with corrections**: Point out mistakes and provide corrections\n"
-            "4. **Overall proficiency assessment**: Based on what you observe\n"
-            "5. **Learning recommendations**: What should they focus on next?\n\n"
-            f"Discover the grammar organically from their actual text - don't assume concepts "
-            f"that aren't clearly demonstrated. Provide feedback in {feedback_language}.\n"
-            "Rate confidence levels based on how clear the evidence is in the text.\n"
-            "Estimate CEFR levels conservatively - only suggest higher levels "
-            "with strong evidence."
+            f"are actually present in their writing.\n\n"
+            "For each grammar concept you observe, provide:\n"
+            "- **concept_name**: Clear title (e.g., 'Present Perfect Tense', 'Subject-Verb Agreement')\n"
+            "- **concept_description**: Brief explanation of what this concept involves\n"
+            "- **user_rating**: Rate the user's proficiency with this concept (0.0-1.0)\n"
+            "- **attempted**: Whether they tried to use this concept\n"
+            "- **correct**: Whether their usage was accurate\n"
+            "- **examples**: Specific examples from their text\n"
+            "- **errors**: Any mistakes found\n"
+            "- **feedback**: Constructive advice for improvement\n\n"
+            f"Focus on concepts actually demonstrated: verb tenses, word order, articles, "
+            f"prepositions, sentence structure, etc. Don't assume concepts that aren't "
+            f"clearly present in the text.\n\n"
+            f"Provide all feedback in {feedback_language}. Rate confidence levels based on "
+            "how clear the evidence is. Estimate CEFR levels conservatively."
         )
 
     def _create_adaptive_prompt_system_prompt(
@@ -478,29 +481,38 @@ class AIService:
         language_code: str,
     ) -> None:
         """Update or create concept mastery based on usage analysis."""
-        # Find the grammar concept
-        concept = await GrammarConcept.objects.filter(
-            name=concept_usage.concept_name, language=language_code
-        ).afirst()
-
-        if not concept:
-            return  # Skip if concept not found
+        # Find or create the grammar concept
+        concept, _ = await GrammarConcept.objects.aget_or_create(
+            name=concept_usage.concept_name,
+            language=language_code,
+            defaults={
+                'description': concept_usage.concept_description,
+                'cefr_level': 'A1',  # Default level, could be improved later
+                'complexity_score': concept_usage.user_rating,
+            },
+        )
 
         # Get or create mastery record
         mastery, _ = await ConceptMastery.objects.aget_or_create(
             user=user,
             concept=concept,
             defaults={
-                'mastery_score': 0.5 if concept_usage.correct else 0.1,
+                'mastery_score': concept_usage.user_rating,
                 'confidence_level': concept_usage.confidence,
             },
         )
 
-        # Update performance
+        # Update performance based on LLM assessment
         difficulty = (
-            0.5  # Default difficulty, could be calculated based on level difference
-        )
+            1.0 - concept_usage.user_rating
+        )  # Higher user rating = lower difficulty
         mastery.update_performance(concept_usage.correct, difficulty)
+
+        # Update mastery score with LLM rating (weighted average)
+        mastery.mastery_score = (mastery.mastery_score * 0.7) + (
+            concept_usage.user_rating * 0.3
+        )
+
         await mastery.asave()
 
     async def _create_or_update_error_pattern(

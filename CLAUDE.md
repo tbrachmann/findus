@@ -24,6 +24,15 @@ what we do want:
 something_score: int = do_something() # let the errors fly! so we can handle them with bespoke handlers
 return something_score
 ```
+or
+```
+try:
+    something_score: int = do_something()
+    return something_score
+except SomethingException as e: # handling for known error where we have to take some action
+    undo_something()
+    raise
+```
 
 # Testing
 

@@ -32,9 +32,20 @@ class ErrorSeverity(str, Enum):
 class ConceptUsage(BaseModel):
     """Analysis of how well a specific grammar concept was used."""
 
-    concept_name: str = Field(..., description="Name of the grammar concept")
+    concept_name: str = Field(
+        ..., description="Title of the grammar concept (e.g., 'Present Perfect Tense')"
+    )
+    concept_description: str = Field(
+        ..., description="Brief description of what this concept involves"
+    )
     attempted: bool = Field(..., description="Whether the user attempted this concept")
     correct: bool = Field(..., description="Whether the usage was correct")
+    user_rating: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="User's proficiency rating for this concept (0-1)",
+    )
     confidence: float = Field(
         ..., ge=0.0, le=1.0, description="Confidence in assessment (0-1)"
     )
