@@ -232,12 +232,6 @@ class LanguageProfile(models.Model):
     total_practice_time = models.IntegerField(
         default=0, help_text="Total practice time in minutes"
     )
-    study_streak_days = models.IntegerField(
-        default=0, help_text="Current consecutive days of practice"
-    )
-    longest_streak = models.IntegerField(
-        default=0, help_text="Longest study streak achieved"
-    )
     last_activity = models.DateTimeField(
         null=True, blank=True, help_text="Last time user practiced this language"
     )
@@ -296,24 +290,6 @@ class LanguageProfile(models.Model):
             f"({self.get_current_level_display()})"
         )
 
-    def update_streak(self) -> None:
-        """Update study streak based on last activity."""
-        if not self.last_activity:
-            self.study_streak_days = 1
-            self.longest_streak = max(self.longest_streak, 1)
-            return
-
-        today = timezone.now().date()
-        last_activity_date = self.last_activity.date()
-
-        if last_activity_date == today:
-            return  # Already updated today
-        elif last_activity_date == today - timedelta(days=1):
-            self.study_streak_days += 1
-            self.longest_streak = max(self.longest_streak, self.study_streak_days)
-        else:
-            self.study_streak_days = 1 if last_activity_date == today else 0
-
     def get_proficiency_score(self) -> float:
         """Calculate overall proficiency score (0.0-1.0) based on CEFR level."""
         level_scores = {
@@ -327,7 +303,7 @@ class LanguageProfile(models.Model):
         return level_scores.get(self.current_level, 0.1)
 
     def update_proficiency_metrics(self) -> None:
-        """Update proficiency metrics based on recent performance."""
+        """Update proficiency metrics based on recent performance (synchronous version)."""
         # Calculate grammar accuracy from recent concept masteries
         recent_masteries = self.user.concept_masteries.filter(
             concept__language=self.target_language,
@@ -341,6 +317,23 @@ class LanguageProfile(models.Model):
                 ]
                 or 0.0
             )
+
+    async def aupdate_proficiency_metrics(self) -> None:
+        """Update proficiency metrics based on recent performance (async version)."""
+        # Calculate grammar accuracy from recent concept masteries
+        recent_masteries_count = await self.user.concept_masteries.filter(
+            concept__language=self.target_language,
+            last_practiced__gte=timezone.now() - timedelta(days=30),
+        ).acount()
+
+        if recent_masteries_count > 0:
+            # Use async aggregate to get average mastery score
+            avg_result = await self.user.concept_masteries.filter(
+                concept__language=self.target_language,
+                last_practiced__gte=timezone.now() - timedelta(days=30),
+            ).aaggregate(avg_mastery=models.Avg('mastery_score'))
+
+            self.grammar_accuracy = avg_result['avg_mastery'] or 0.0
 
             # Update overall proficiency score based on multiple factors
             base_score = self.get_proficiency_score()

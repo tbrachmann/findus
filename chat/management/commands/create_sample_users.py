@@ -102,11 +102,10 @@ class Command(BaseCommand):
             for lang in random.sample(languages, random.randint(1, 2)):
                 level = random.choice(levels)
                 messages = random.randint(5, 150)
-                streak = random.randint(0, 30)
                 practice_time = random.randint(messages * 2, messages * 5)
 
                 self._create_language_profile(
-                    user, lang, level, messages, streak, practice_time
+                    user, lang, level, messages, practice_time
                 )
 
     def _create_language_profile(
@@ -115,7 +114,6 @@ class Command(BaseCommand):
         language: str,
         level: str,
         total_messages: int,
-        streak: int,
         practice_time: int,
     ):
         """Create a language profile with realistic data."""
@@ -137,10 +135,7 @@ class Command(BaseCommand):
             current_level=level,
             total_messages=total_messages,
             total_practice_time=practice_time,
-            study_streak_days=streak,
-            longest_streak=max(streak, random.randint(streak, streak + 10)),
-            last_activity=timezone.now()
-            - timedelta(days=random.randint(0, 3 if streak > 0 else 7)),
+            last_activity=timezone.now() - timedelta(days=random.randint(0, 7)),
             proficiency_score=proficiency_score,
             confidence_level=random.uniform(0.6, 0.9),
             vocabulary_size=random.randint(100, 2000),

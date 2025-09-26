@@ -98,7 +98,6 @@ class LanguageProfileAdmin(admin.ModelAdmin):
         "current_level",
         "proficiency_score",
         "total_messages",
-        "study_streak_days",
         "is_active",
         "last_activity",
     )

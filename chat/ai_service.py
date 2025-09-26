@@ -514,7 +514,7 @@ class AIService:
                 return  # Skip if concept not found
 
             # Get or create mastery record
-            mastery, created = await ConceptMastery.objects.aget_or_create(
+            mastery, _ = await ConceptMastery.objects.aget_or_create(
                 user=user,
                 concept=concept,
                 defaults={
@@ -534,7 +534,7 @@ class AIService:
             print(f"Error updating concept mastery: {e}")
 
     async def _create_or_update_error_pattern(
-        self, user: User, error: Any, language_code: str  # GrammarError from analysis
+        self, user: User, error: Any, _language_code: str  # GrammarError from analysis
     ) -> None:
         """Create or update error pattern for persistent tracking."""
         try:
