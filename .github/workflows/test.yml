@@ -1,0 +1,82 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Set up Python
+      run: uv python install 3.13
+
+    - name: Install dependencies
+      run: |
+        uv sync
+        uv add requests  # For server health checks in integration tests
+
+    - name: Install Playwright browsers
+      run: |
+        uv run playwright install chromium
+        uv run playwright install-deps chromium
+
+    - name: Set up environment variables
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      run: |
+        echo "DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_db" >> .env
+        echo "GEMINI_API_KEY=$GEMINI_API_KEY" >> .env
+        echo "SECRET_KEY=test-secret-key-for-ci" >> .env
+        echo "DEBUG=True" >> .env
+        echo "DJANGO_ALLOW_ASYNC_UNSAFE=true" >> .env
+
+    - name: Run migrations
+      run: |
+        uv run python manage.py migrate
+
+    - name: Run unit tests
+      run: |
+        uv run python manage.py test
+
+    - name: Start Django server (background)
+      run: |
+        uv run python manage.py runserver &
+        sleep 10  # Give server time to start
+
+    - name: Run Playwright integration tests
+      run: |
+        uv run python playwright_integration_test.py
+
+    - name: Upload Playwright screenshots on failure
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: playwright-screenshots
+        path: /tmp/playwright_screenshots/
+        retention-days: 7

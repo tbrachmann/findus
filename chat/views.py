@@ -122,27 +122,78 @@ async def analyze_grammar_async(
     user_message: str,
     analysis_language: str = 'en',
     language_code: str = 'en',
+    user_id: int | None = None,
 ) -> None:
     """
-    Async grammar analysis using Django's async ORM.
+    Enhanced async grammar analysis with structured proficiency tracking.
 
-    1. Ask AI to analyse ``user_message`` for grammar / spelling issues using Pydantic AI.
-    2. Persist the feedback to ``ChatMessage.grammar_analysis``.
+    1. Perform structured grammar analysis using enhanced AI service
+    2. Update user's proficiency metrics and concept masteries
+    3. Store both basic and structured analysis results
 
     Args:
         message_id: Primary-key of the ``ChatMessage`` row to update
         user_message: The original user prompt
         analysis_language: Language code for the grammar analysis feedback
         language_code: Language code for the conversation being analyzed
+        user_id: User ID for proficiency tracking (optional for backward compatibility)
     """
     try:
-        analysis_text = await ai_service.analyze_grammar(
+        # Get the chat message and user
+        message = await ChatMessage.objects.select_related('conversation__user').aget(
+            pk=message_id
+        )
+        user = message.conversation.user
+
+        # Run both basic and structured analysis concurrently
+        basic_analysis_task = ai_service.analyze_grammar(
             user_message, analysis_language, language_code
         )
-        # Update only the grammar_analysis column to avoid race-conditions
+
+        structured_analysis_task = ai_service.analyze_grammar_structured(
+            user_message, user, language_code, analysis_language
+        )
+
+        # Wait for both analyses to complete
+        basic_analysis, structured_analysis = await asyncio.gather(
+            basic_analysis_task, structured_analysis_task, return_exceptions=True
+        )
+
+        # Handle basic analysis result
+        if isinstance(basic_analysis, Exception):
+            analysis_text = f"Basic analysis failed: {basic_analysis}"
+        else:
+            analysis_text = basic_analysis
+
+        # Handle structured analysis result
+        if isinstance(structured_analysis, Exception):
+            print(
+                f"Structured analysis failed for message {message_id}: {structured_analysis}"
+            )
+            structured_analysis = None
+
+        # Update the message with basic analysis (for backward compatibility)
         await ChatMessage.objects.filter(pk=message_id).aupdate(
             grammar_analysis=analysis_text
         )
+
+        # Update user proficiency if structured analysis succeeded
+        if structured_analysis:
+            await ai_service.update_user_proficiency(
+                structured_analysis, user, language_code
+            )
+
+            # Update language profile metrics
+            language_profile = await user.language_profiles.filter(
+                target_language=language_code
+            ).afirst()
+
+            if language_profile:
+                language_profile.total_messages += 1
+                language_profile.update_streak()
+                language_profile.update_proficiency_metrics()
+                await language_profile.asave()
+
     except Exception as exc:  # pragma: no cover – best-effort background task
         # In production you might log this.
         await ChatMessage.objects.filter(pk=message_id).aupdate(

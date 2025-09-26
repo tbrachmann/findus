@@ -11,8 +11,8 @@ from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from datetime import timedelta
-import json
-from typing import Dict, Any
+from typing import List
+from .fields import VectorField, VectorManager
 
 
 class Conversation(models.Model):
@@ -291,7 +291,10 @@ class LanguageProfile(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"{self.user.username} - {self.get_target_language_display()} ({self.get_current_level_display()})"
+        return (
+            f"{self.user.username} - {self.get_target_language_display()} "
+            f"({self.get_current_level_display()})"
+        )
 
     def update_streak(self) -> None:
         """Update study streak based on last activity."""
@@ -383,6 +386,73 @@ class LanguageProfile(models.Model):
         mastery_percentage = mastered_concepts / total_concepts
         return mastery_percentage >= threshold
 
+    def get_personalized_concepts_for_practice(
+        self, limit: int = 5
+    ) -> List['GrammarConcept']:
+        """
+        Get personalized concept recommendations using vector similarity and mastery data.
+
+        Prioritizes:
+        1. Concepts due for spaced repetition review
+        2. Similar concepts to ones the user struggles with
+        3. Prerequisites to concepts the user wants to learn
+        """
+        # ConceptMastery will be used via related manager
+
+        recommendations = []
+
+        # 1. Get concepts due for review
+        due_masteries = self.user.concept_masteries.filter(
+            concept__language=self.target_language, next_review__lte=timezone.now()
+        ).order_by('next_review')[:3]
+
+        review_concepts = [mastery.concept for mastery in due_masteries]
+        recommendations.extend(review_concepts)
+
+        # 2. Find similar concepts to ones user struggles with (low mastery score)
+        struggling_masteries = self.user.concept_masteries.filter(
+            concept__language=self.target_language,
+            mastery_score__lt=0.6,
+            attempts_count__gte=3,
+        ).order_by('mastery_score')[:2]
+
+        for mastery in struggling_masteries:
+            if mastery.concept.embedding:
+                similar_concepts = mastery.concept.find_similar_concepts(
+                    limit=2, threshold=0.6
+                ).filter(cefr_level__in=[self.current_level, self.get_previous_level()])
+                recommendations.extend(similar_concepts)
+
+        # 3. Get next level concepts the user might be ready for
+        next_level = self.get_next_level()
+        if next_level != self.current_level:
+            next_level_concepts = GrammarConcept.objects.filter(
+                language=self.target_language, cefr_level=next_level
+            ).exclude(id__in=[concept.id for concept in recommendations])[:2]
+
+            recommendations.extend(next_level_concepts)
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_recommendations = []
+        for concept in recommendations:
+            if concept.id not in seen:
+                seen.add(concept.id)
+                unique_recommendations.append(concept)
+
+        return unique_recommendations[:limit]
+
+    def get_previous_level(self) -> str:
+        """Get the previous CEFR level."""
+        level_progression = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+        try:
+            current_index = level_progression.index(self.current_level)
+            if current_index > 0:
+                return level_progression[current_index - 1]
+        except ValueError:
+            pass
+        return 'A1'  # Default to A1 if invalid level
+
 
 class GrammarConcept(models.Model):
     """
@@ -412,8 +482,11 @@ class GrammarConcept(models.Model):
         validators=[MinValueValidator(0.0), MaxValueValidator(10.0)],
         help_text="Complexity rating from 0 (simple) to 10 (complex)",
     )
-    embedding = models.JSONField(
-        null=True, blank=True, help_text="Vector embedding for similarity searches"
+    embedding = VectorField(
+        dimensions=768,
+        null=True,
+        blank=True,
+        help_text="Vector embedding for similarity searches",
     )
     prerequisite_concepts = models.ManyToManyField(
         'self',
@@ -435,6 +508,8 @@ class GrammarConcept(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = VectorManager()
+
     class Meta:
         verbose_name = "Grammar Concept"
         verbose_name_plural = "Grammar Concepts"
@@ -447,13 +522,134 @@ class GrammarConcept(models.Model):
     def __str__(self) -> str:
         return f"{self.name} ({self.get_cefr_level_display()}) - {self.get_language_display()}"
 
-    def get_embedding_vector(self) -> list[float] | None:
+    def get_embedding_vector(self) -> List[float] | None:
         """Get the embedding vector as a list of floats."""
         return self.embedding if self.embedding else None
 
-    def set_embedding_vector(self, vector: list[float]) -> None:
+    def set_embedding_vector(self, vector: List[float]) -> None:
         """Set the embedding vector from a list of floats."""
         self.embedding = vector
+
+    def find_similar_concepts(
+        self, limit: int = 5, threshold: float = 0.5
+    ) -> models.QuerySet['GrammarConcept']:
+        """Find similar concepts using vector similarity."""
+        if not self.embedding:
+            return GrammarConcept.objects.none()
+
+        # Get similarity results and exclude self, then limit
+        similar_queryset = GrammarConcept.objects.extra(
+            select={'similarity': '1 - (embedding <=> %s)'},
+            select_params=['[' + ','.join(str(float(x)) for x in self.embedding) + ']'],
+            where=['1 - (embedding <=> %s) >= %s'],
+            params=[
+                '[' + ','.join(str(float(x)) for x in self.embedding) + ']',
+                threshold,
+            ],
+            order_by=['-similarity'],
+        ).exclude(id=self.id)[:limit]
+
+        return similar_queryset
+
+    def find_prerequisites_by_similarity(
+        self, threshold: float = 0.7
+    ) -> models.QuerySet['GrammarConcept']:
+        """Find potential prerequisite concepts using vector similarity and CEFR levels."""
+        if not self.embedding:
+            return GrammarConcept.objects.none()
+
+        # Find similar concepts at lower CEFR levels
+        cefr_order = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+        current_index = (
+            cefr_order.index(self.cefr_level) if self.cefr_level in cefr_order else 0
+        )
+        lower_levels = cefr_order[:current_index]
+
+        if not lower_levels:
+            return GrammarConcept.objects.none()
+
+        return (
+            GrammarConcept.objects.filter(
+                language=self.language, cefr_level__in=lower_levels
+            )
+            .exclude(id=self.id)
+            .extra(
+                select={'similarity': '1 - (embedding <=> %s)'},
+                select_params=[
+                    '[' + ','.join(str(float(x)) for x in self.embedding) + ']'
+                ],
+                where=['1 - (embedding <=> %s) >= %s'],
+                params=[
+                    '[' + ','.join(str(float(x)) for x in self.embedding) + ']',
+                    threshold,
+                ],
+                order_by=['-similarity'],
+            )[:10]
+        )
+
+    def find_learning_path(self, limit: int = 5) -> List['GrammarConcept']:
+        """Find a suggested learning path based on concept similarity and CEFR progression."""
+        if not self.embedding:
+            return []
+
+        # Find next level concepts that are similar
+        cefr_order = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+        current_index = (
+            cefr_order.index(self.cefr_level) if self.cefr_level in cefr_order else 0
+        )
+
+        learning_path = []
+
+        # Look for similar concepts at the same level first
+        same_level_base = (
+            GrammarConcept.objects.filter(
+                language=self.language, cefr_level=self.cefr_level
+            )
+            .exclude(id=self.id)
+            .extra(
+                select={'similarity': '1 - (embedding <=> %s)'},
+                select_params=[
+                    '[' + ','.join(str(float(x)) for x in self.embedding) + ']'
+                ],
+                where=['1 - (embedding <=> %s) >= %s'],
+                params=[
+                    '[' + ','.join(str(float(x)) for x in self.embedding) + ']',
+                    0.6,
+                ],
+                order_by=['-similarity'],
+            )[:2]
+        )
+
+        same_level = list(same_level_base)
+
+        learning_path.extend(same_level)
+
+        # Then look at next levels
+        next_levels = cefr_order[current_index + 1 : current_index + 3]  # Next 2 levels
+        if next_levels:
+            next_concepts_base = (
+                GrammarConcept.objects.filter(
+                    language=self.language, cefr_level__in=next_levels
+                )
+                .exclude(id=self.id)
+                .extra(
+                    select={'similarity': '1 - (embedding <=> %s)'},
+                    select_params=[
+                        '[' + ','.join(str(float(x)) for x in self.embedding) + ']'
+                    ],
+                    where=['1 - (embedding <=> %s) >= %s'],
+                    params=[
+                        '[' + ','.join(str(float(x)) for x in self.embedding) + ']',
+                        0.5,
+                    ],
+                    order_by=['-similarity'],
+                )[:3]
+            )
+
+            next_concepts = list(next_concepts_base)
+            learning_path.extend(next_concepts)
+
+        return learning_path[:limit]
 
 
 class ConceptMastery(models.Model):
