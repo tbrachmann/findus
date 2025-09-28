@@ -99,8 +99,7 @@ class Conversation(models.Model):
         )
 
         # Update user proficiency and concept mastery based on analysis
-        await ai_service.update_user_proficiency(
-            analysis=analysis_result,
+        await analysis_result.update_user_proficiency(
             user=self.user,
             language_code=self.language,
         )

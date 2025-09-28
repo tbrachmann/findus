@@ -1776,16 +1776,13 @@ class ConversationEndTest(TransactionTestCase):
         """Test that analyze_grammar_structured calls AI service with correct data."""
         await self.asetUp()
 
-        # Mock the AI service response
-        expected_result = {
-            "concepts_identified": ["present_tense", "question_formation"],
-            "user_level": "intermediate",
-            "recommendations": ["Practice past tense", "Work on complex sentences"],
-        }
+        # Create a mock analysis result with the update method
+        mock_analysis_result = AsyncMock()
+        mock_analysis_result.update_user_proficiency = AsyncMock()
+
         mock_ai_service.analyze_grammar_structured = AsyncMock(
-            return_value=expected_result
+            return_value=mock_analysis_result
         )
-        mock_ai_service.update_user_proficiency = AsyncMock()
 
         # Call analyze_grammar_structured
         result = await self.conversation.analyze_grammar_structured()
@@ -1804,11 +1801,10 @@ class ConversationEndTest(TransactionTestCase):
         self.assertIn("I like programming with Python", combined_text)
 
         # Verify return value
-        self.assertEqual(result, expected_result)
+        self.assertEqual(result, mock_analysis_result)
 
-        # Verify update_user_proficiency was called
-        mock_ai_service.update_user_proficiency.assert_called_once_with(
-            analysis=expected_result,
+        # Verify update_user_proficiency was called on the analysis result
+        mock_analysis_result.update_user_proficiency.assert_called_once_with(
             user=self.user,
             language_code='en',
         )
@@ -1820,21 +1816,23 @@ class ConversationEndTest(TransactionTestCase):
         """Test that Conversation.end() calls analyze_grammar_structured."""
         await self.asetUp()
 
-        expected_result = {"status": "analysis_complete"}
+        # Create a mock analysis result with the update method
+        mock_analysis_result = AsyncMock()
+        mock_analysis_result.update_user_proficiency = AsyncMock()
+
         mock_ai_service.analyze_grammar_structured = AsyncMock(
-            return_value=expected_result
+            return_value=mock_analysis_result
         )
-        mock_ai_service.update_user_proficiency = AsyncMock()
 
         # Call end method
         result = await self.conversation.end()
 
         # Verify analyze_grammar_structured was called
         mock_ai_service.analyze_grammar_structured.assert_called_once()
-        self.assertEqual(result, expected_result)
+        self.assertEqual(result, mock_analysis_result)
 
-        # Verify update_user_proficiency was also called
-        mock_ai_service.update_user_proficiency.assert_called_once()
+        # Verify update_user_proficiency was called on the analysis result
+        mock_analysis_result.update_user_proficiency.assert_called_once()
 
     async def test_conversation_analyze_grammar_structured_no_messages(self) -> None:
         """Test analyze_grammar_structured with conversation that has no messages."""
@@ -1877,10 +1875,13 @@ class EndConversationViewTest(TransactionTestCase):
         """Test successful conversation ending."""
         await self.asetUp()
 
+        # Create a mock analysis result with the update method
+        mock_analysis_result = AsyncMock()
+        mock_analysis_result.update_user_proficiency = AsyncMock()
+
         mock_ai_service.analyze_grammar_structured = AsyncMock(
-            return_value={"status": "success"}
+            return_value=mock_analysis_result
         )
-        mock_ai_service.update_user_proficiency = AsyncMock()
 
         # Force login the user
         self.client.force_login(self.user)
@@ -1942,3 +1943,78 @@ class EndConversationViewTest(TransactionTestCase):
 
         # Should return 404
         self.assertEqual(response.status_code, 404)
+
+
+class StructuredGrammarAnalysisIntegrationTest(TransactionTestCase):
+    """Integration tests for StructuredGrammarAnalysis functionality."""
+
+    async def asetUp(self) -> None:
+        """Set up test data."""
+        self.user = await User.objects.acreate(
+            username='testuser', email='test@example.com', password='testpass123'
+        )
+
+    async def test_structured_grammar_analysis_update_user_proficiency_integration(
+        self,
+    ) -> None:
+        """Integration test for StructuredGrammarAnalysis.update_user_proficiency."""
+        await self.asetUp()
+
+        from chat.analysis_models import (
+            StructuredGrammarAnalysis,
+            ProficiencyAssessment,
+            ConceptUsage,
+            CEFRLevel,
+        )
+
+        # Create a real StructuredGrammarAnalysis object with all required fields
+        analysis = StructuredGrammarAnalysis(
+            proficiency=ProficiencyAssessment(
+                estimated_level=CEFRLevel.B1,
+                confidence=0.8,
+                vocabulary_level=CEFRLevel.B1,
+                grammar_level=CEFRLevel.A2,
+                fluency_score=0.7,
+                coherence_score=0.8,
+            ),
+            concepts_used=[
+                ConceptUsage(
+                    concept_name="Present Perfect Tense",
+                    concept_description="Using have/has + past participle",
+                    attempted=True,
+                    correct=True,
+                    user_rating=0.7,
+                    confidence=0.8,
+                    examples=["I have been studying English"],
+                    errors=[],
+                    feedback="Good use of present perfect",
+                )
+            ],
+            errors=[],
+            total_errors=0,
+            error_rate=0.0,
+            accuracy_score=0.9,
+            strengths=["Good sentence structure", "Appropriate vocabulary"],
+            weaknesses=["Could work on past tense"],
+            next_concepts=["Past Perfect Tense"],
+            practice_suggestions=["Practice with time expressions"],
+            analysis_language="en",
+            target_language="en",
+            text_length=100,
+            word_count=20,
+        )
+
+        # This should work without throwing AttributeError
+        await analysis.update_user_proficiency(user=self.user, language_code='en')
+
+        # Verify that the language profile was created/updated
+        from chat.models import LanguageProfile
+
+        profile = await LanguageProfile.objects.aget(
+            user=self.user, target_language='en'
+        )
+
+        self.assertEqual(profile.grammar_accuracy, 0.9)
+        self.assertEqual(profile.fluency_score, 0.7)
+        self.assertIn("Good sentence structure", profile.strong_areas)
+        self.assertIn("Could work on past tense", profile.weak_areas)

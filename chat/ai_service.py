@@ -313,69 +313,6 @@ class AIService:
 
         return result.output
 
-    async def update_user_proficiency(
-        self, analysis: StructuredGrammarAnalysis, user: User, language_code: str
-    ) -> None:
-        """
-        Update user's proficiency metrics and concept masteries based on analysis.
-
-        Args:
-            analysis: Structured analysis results
-            user: User to update
-            language_code: Target language
-        """
-        # Get or create language profile
-        language_profile, created = await LanguageProfile.objects.aget_or_create(
-            user=user,
-            target_language=language_code,
-            defaults={
-                'current_level': analysis.proficiency.estimated_level.value,
-                'proficiency_score': analysis.accuracy_score,
-                'grammar_accuracy': analysis.accuracy_score,
-                'fluency_score': analysis.proficiency.fluency_score,
-            },
-        )
-
-        if not created:
-            # Update existing profile with weighted average
-            language_profile.grammar_accuracy = (
-                language_profile.grammar_accuracy * 0.8 + analysis.accuracy_score * 0.2
-            )
-            language_profile.fluency_score = (
-                language_profile.fluency_score * 0.8
-                + analysis.proficiency.fluency_score * 0.2
-            )
-
-            # Update proficiency score
-            language_profile.proficiency_score = (
-                language_profile.grammar_accuracy * 0.6
-                + language_profile.fluency_score * 0.4
-            )
-
-            # Update weak/strong areas
-            language_profile.weak_areas = list(
-                set(language_profile.weak_areas + analysis.weaknesses)
-            )[
-                :10
-            ]  # Keep only top 10
-
-            language_profile.strong_areas = list(
-                set(language_profile.strong_areas + analysis.strengths)
-            )[
-                :10
-            ]  # Keep only top 10
-
-            await language_profile.asave()
-
-        # Update concept masteries
-        for concept_usage in analysis.concepts_used:
-            await self._update_concept_mastery(user, concept_usage, language_code)
-
-        # Create error patterns for persistent errors
-        for error in analysis.errors:
-            if error.severity in [ErrorSeverity.MODERATE, ErrorSeverity.SEVERE]:
-                await self._create_or_update_error_pattern(user, error, language_code)
-
     async def find_or_create_grammar_concept(
         self,
         concept_name: str,

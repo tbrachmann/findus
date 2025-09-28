@@ -106,6 +106,159 @@ class StructuredGrammarAnalysis(BaseModel):
         ..., description="Analysis of grammar concepts attempted"
     )
 
+    # Error analysis
+    errors: List[GrammarError] = Field(
+        default=[], description="Detailed grammatical errors found"
+    )
+    total_errors: int = Field(..., description="Total number of errors found")
+    error_rate: float = Field(
+        ..., ge=0.0, le=1.0, description="Error rate as percentage of total words"
+    )
+    accuracy_score: float = Field(
+        ..., ge=0.0, le=1.0, description="Overall accuracy score (1 - error_rate)"
+    )
+
+    # Strengths and weaknesses
+    strengths: List[str] = Field(..., description="Areas where user performed well")
+    weaknesses: List[str] = Field(..., description="Areas needing improvement")
+    next_concepts: List[str] = Field(
+        ..., description="Recommended concepts to learn next"
+    )
+    practice_suggestions: List[str] = Field(
+        ..., description="Specific practice recommendations"
+    )
+
+    # Metadata
+    analysis_language: str = Field(..., description="Language used for feedback")
+    target_language: str = Field(..., description="Language being learned")
+    text_length: int = Field(..., description="Length of analyzed text")
+    word_count: int = Field(..., description="Number of words analyzed")
+
+    async def update_user_proficiency(self, user, language_code: str) -> None:
+        """
+        Update user's proficiency metrics and concept masteries based on this analysis.
+
+        Args:
+            user: User to update
+            language_code: Target language
+        """
+        from .models import (
+            LanguageProfile,
+            ConceptMastery,
+            GrammarConcept,
+            ErrorPattern,
+        )
+        from django.utils import timezone
+
+        # Get or create language profile
+        language_profile, created = await LanguageProfile.objects.aget_or_create(
+            user=user,
+            target_language=language_code,
+            defaults={
+                'current_level': self.proficiency.estimated_level.value,
+                'proficiency_score': self.accuracy_score,
+                'grammar_accuracy': self.accuracy_score,
+                'fluency_score': self.proficiency.fluency_score,
+            },
+        )
+
+        if not created:
+            # Update existing profile with weighted average
+            language_profile.grammar_accuracy = (
+                language_profile.grammar_accuracy * 0.8 + self.accuracy_score * 0.2
+            )
+            language_profile.fluency_score = (
+                language_profile.fluency_score * 0.8
+                + self.proficiency.fluency_score * 0.2
+            )
+
+            # Update proficiency score
+            language_profile.proficiency_score = (
+                language_profile.grammar_accuracy * 0.6
+                + language_profile.fluency_score * 0.4
+            )
+
+            # Update weak/strong areas
+            language_profile.weak_areas = list(
+                set(language_profile.weak_areas + self.weaknesses)
+            )[
+                :10
+            ]  # Keep only top 10
+
+            language_profile.strong_areas = list(
+                set(language_profile.strong_areas + self.strengths)
+            )[
+                :10
+            ]  # Keep only top 10
+
+            await language_profile.asave()
+
+        # Update concept masteries
+        for concept_usage in self.concepts_used:
+            await self._update_concept_mastery(user, concept_usage, language_code)
+
+        # Create error patterns for persistent errors
+        for error in self.errors:
+            await self._create_or_update_error_pattern(user, error)
+
+    async def _update_concept_mastery(
+        self, user, concept_usage: ConceptUsage, language_code: str
+    ) -> None:
+        """Update or create concept mastery based on usage analysis."""
+        from .models import GrammarConcept, ConceptMastery
+        from django.utils import timezone
+
+        # Find or create the grammar concept
+        concept, _ = await GrammarConcept.objects.aget_or_create(
+            name=concept_usage.concept_name,
+            language=language_code,
+            defaults={
+                'description': concept_usage.concept_description,
+                'complexity_score': 5.0,  # Default complexity
+                'cefr_level': 'A2',  # Default level
+            },
+        )
+
+        # Get or create concept mastery
+        mastery, _ = await ConceptMastery.objects.aget_or_create(
+            user=user, concept=concept
+        )
+
+        # Determine if this attempt was correct
+        is_correct = concept_usage.attempted and concept_usage.correct
+
+        # Calculate difficulty based on concept complexity and user rating
+        difficulty = 1.0 - concept_usage.user_rating
+
+        # Update mastery using the existing performance update method
+        mastery.update_performance(is_correct, difficulty)
+        await mastery.asave()
+
+    async def _create_or_update_error_pattern(self, user, error: GrammarError) -> None:
+        """Create or update error pattern based on grammar error."""
+        from .models import ErrorPattern
+
+        # Try to find existing error pattern
+        existing_pattern = await ErrorPattern.objects.filter(
+            user=user,
+            error_type=error.error_type,
+            error_description__icontains=error.explanation[:50],  # Match similar errors
+        ).afirst()
+
+        if existing_pattern:
+            # Update existing pattern
+            existing_pattern.add_occurrence(error.original_text, error.corrected_text)
+            await existing_pattern.asave()
+        else:
+            # Create new error pattern
+            await ErrorPattern.objects.acreate(
+                user=user,
+                error_type=error.error_type,
+                error_description=error.explanation,
+                example_errors=[error.original_text],
+                correction_suggestions=[error.corrected_text],
+            )
+
 
 class ConceptMasteryUpdate(BaseModel):
     """Data for updating a user's concept mastery based on performance."""
