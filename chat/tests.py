@@ -1785,6 +1785,7 @@ class ConversationEndTest(TransactionTestCase):
         mock_ai_service.analyze_grammar_structured = AsyncMock(
             return_value=expected_result
         )
+        mock_ai_service.update_user_proficiency = AsyncMock()
 
         # Call analyze_grammar_structured
         result = await self.conversation.analyze_grammar_structured()
@@ -1805,6 +1806,13 @@ class ConversationEndTest(TransactionTestCase):
         # Verify return value
         self.assertEqual(result, expected_result)
 
+        # Verify update_user_proficiency was called
+        mock_ai_service.update_user_proficiency.assert_called_once_with(
+            analysis=expected_result,
+            user=self.user,
+            language_code='en',
+        )
+
     @patch('chat.ai_service.ai_service')
     async def test_conversation_end_calls_analyze_grammar_structured(
         self, mock_ai_service: MagicMock
@@ -1816,6 +1824,7 @@ class ConversationEndTest(TransactionTestCase):
         mock_ai_service.analyze_grammar_structured = AsyncMock(
             return_value=expected_result
         )
+        mock_ai_service.update_user_proficiency = AsyncMock()
 
         # Call end method
         result = await self.conversation.end()
@@ -1823,6 +1832,9 @@ class ConversationEndTest(TransactionTestCase):
         # Verify analyze_grammar_structured was called
         mock_ai_service.analyze_grammar_structured.assert_called_once()
         self.assertEqual(result, expected_result)
+
+        # Verify update_user_proficiency was also called
+        mock_ai_service.update_user_proficiency.assert_called_once()
 
     async def test_conversation_analyze_grammar_structured_no_messages(self) -> None:
         """Test analyze_grammar_structured with conversation that has no messages."""
@@ -1868,6 +1880,7 @@ class EndConversationViewTest(TransactionTestCase):
         mock_ai_service.analyze_grammar_structured = AsyncMock(
             return_value={"status": "success"}
         )
+        mock_ai_service.update_user_proficiency = AsyncMock()
 
         # Force login the user
         self.client.force_login(self.user)
