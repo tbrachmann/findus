@@ -34,6 +34,12 @@ urlpatterns = [
         views.conversation_analysis,
         name='conversation_analysis',
     ),
+    # End conversation and run structured analysis
+    path(
+        'conversation/<int:conversation_id>/end/',
+        views.end_conversation,
+        name='end_conversation',
+    ),
     # API endpoint for sending messages to Gemini
     path('send/', views.send_message, name='send_message'),
     # Polling endpoint to fetch grammar analysis results

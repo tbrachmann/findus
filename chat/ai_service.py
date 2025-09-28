@@ -628,39 +628,6 @@ class AIService:
                 correction_suggestions=[error.corrected_text],
             )
 
-    async def _create_fallback_analysis(
-        self, text: str, language_code: str, analysis_language_code: str
-    ) -> StructuredGrammarAnalysis:
-        """Create a basic fallback analysis if structured analysis fails."""
-        from .analysis_models import (
-            StructuredGrammarAnalysis,
-            ProficiencyAssessment,
-        )
-
-        return StructuredGrammarAnalysis(
-            proficiency=ProficiencyAssessment(
-                estimated_level=CEFRLevel.A2,
-                confidence=0.3,
-                vocabulary_level=CEFRLevel.A2,
-                grammar_level=CEFRLevel.A2,
-                fluency_score=0.5,
-                coherence_score=0.5,
-            ),
-            concepts_used=[],
-            errors=[],
-            total_errors=0,
-            error_rate=0.0,
-            accuracy_score=0.8,
-            strengths=["Text submitted for analysis"],
-            weaknesses=["Analysis could not be completed"],
-            next_concepts=["Basic grammar review"],
-            practice_suggestions=["Continue practicing with short texts"],
-            analysis_language=analysis_language_code,
-            target_language=language_code,
-            text_length=len(text),
-            word_count=len(text.split()),
-        )
-
     async def _create_fallback_prompt(
         self, language_code: str, level: str
     ) -> AdaptivePrompt:

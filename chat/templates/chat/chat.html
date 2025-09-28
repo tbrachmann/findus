@@ -124,6 +124,7 @@
             display: inline-flex;
             align-items: center;
             margin-right: 10px; /* gap between buttons */
+            font-family: inherit;
         }
 
         .end-conversation-btn:hover {
@@ -404,8 +405,10 @@
                     <span class="username">{{ request.user.username }}</span>
                     <a href="{% url 'logout' %}" class="logout-link">Logout</a>
                 </div>
-                <a href="{% url 'conversation_analysis' conversation.id %}"
-                   class="end-conversation-btn">End Conversation</a>
+                <form action="{% url 'end_conversation' conversation.id %}" method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="end-conversation-btn" style="border: none; background: none; cursor: pointer;">End Conversation</button>
+                </form>
                 <a href="{% url 'new_conversation' %}" class="new-conversation-btn">+ New Conversation</a>
             </div>
         </div>

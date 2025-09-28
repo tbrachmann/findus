@@ -9,7 +9,10 @@ run the server with `uv run uvicorn findus.asgi:application --reload`
 
 # Error Handling
 
-since we're in development mode, you don't need to add error handling at every location that could throw an error. instead of doing a very general `try: .... except Exception as e` block - just let the error be thrown so it can help you debug. Here's an example of what we DON'T want:
+since we're in development mode, you don't need to add error handling at every location that could throw an error. instead of doing a very general `try: .... except Exception as e` block - just let the error be thrown so it can help you debug. I don't want these in
+user-facing views either! I'm happy to show error to the user for now.
+
+Here's an example of what we DON'T want:
 ```
 try:
     something_score: int = do_something()
@@ -38,6 +41,7 @@ except SomethingException as e: # handling for known error where we have to take
 
 * please make sure all new features are covered by tests, and make sure that all tests are passing before committing. run all tests with `uv run ./manage.py test` before committing to make sure you haven't broken previous functionality.
 * if the test is failing - do not skip it. make sure it passes
+* when running tests we'll want to use `--keepdb` as much as possible
 
 # Async-Native Platform
 

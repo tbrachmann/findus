@@ -10,6 +10,10 @@ from typing import Any
 from unittest.mock import AsyncMock, patch, MagicMock
 from django.test import TestCase, TransactionTestCase, Client
 from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+from django.test.utils import override_settings
+from django.contrib.auth.backends import ModelBackend
+from django.contrib.auth import login as auth_login
 from django.urls import reverse
 from django.utils import timezone
 from asgiref.sync import sync_to_async
@@ -1740,3 +1744,188 @@ class ConversationModelTest(TestCase):
         """Test that analysis_language defaults to English."""
         conversation = Conversation.objects.create(user=self.user, language='es')
         self.assertEqual(conversation.analysis_language, 'en')
+
+
+class ConversationEndTest(TransactionTestCase):
+    """Test Conversation.end() method and related functionality."""
+
+    async def asetUp(self) -> None:
+        """Set up test data with async operations."""
+        self.user = await User.objects.acreate(
+            username='testuser', email='test@example.com', password='testpass123'
+        )
+        self.conversation = await Conversation.objects.acreate(
+            user=self.user, language='en', analysis_language='en'
+        )
+        # Create some test messages
+        self.message1 = await ChatMessage.objects.acreate(
+            conversation=self.conversation,
+            message="Hello, how are you today?",
+            response="I'm doing well, thank you!",
+        )
+        self.message2 = await ChatMessage.objects.acreate(
+            conversation=self.conversation,
+            message="I like programming with Python",
+            response="That's great! Python is a wonderful language.",
+        )
+
+    @patch('chat.ai_service.ai_service')
+    async def test_conversation_analyze_grammar_structured(
+        self, mock_ai_service: MagicMock
+    ) -> None:
+        """Test that analyze_grammar_structured calls AI service with correct data."""
+        await self.asetUp()
+
+        # Mock the AI service response
+        expected_result = {
+            "concepts_identified": ["present_tense", "question_formation"],
+            "user_level": "intermediate",
+            "recommendations": ["Practice past tense", "Work on complex sentences"],
+        }
+        mock_ai_service.analyze_grammar_structured = AsyncMock(
+            return_value=expected_result
+        )
+
+        # Call analyze_grammar_structured
+        result = await self.conversation.analyze_grammar_structured()
+
+        # Verify AI service was called with correct parameters
+        mock_ai_service.analyze_grammar_structured.assert_called_once()
+        call_args = mock_ai_service.analyze_grammar_structured.call_args
+
+        self.assertEqual(call_args.kwargs['user'], self.user)
+        self.assertEqual(call_args.kwargs['language_code'], 'en')
+        self.assertEqual(call_args.kwargs['analysis_language_code'], 'en')
+
+        # Check that combined text contains both user messages
+        combined_text = call_args.kwargs['text']
+        self.assertIn("Hello, how are you today?", combined_text)
+        self.assertIn("I like programming with Python", combined_text)
+
+        # Verify return value
+        self.assertEqual(result, expected_result)
+
+    @patch('chat.ai_service.ai_service')
+    async def test_conversation_end_calls_analyze_grammar_structured(
+        self, mock_ai_service: MagicMock
+    ) -> None:
+        """Test that Conversation.end() calls analyze_grammar_structured."""
+        await self.asetUp()
+
+        expected_result = {"status": "analysis_complete"}
+        mock_ai_service.analyze_grammar_structured = AsyncMock(
+            return_value=expected_result
+        )
+
+        # Call end method
+        result = await self.conversation.end()
+
+        # Verify analyze_grammar_structured was called
+        mock_ai_service.analyze_grammar_structured.assert_called_once()
+        self.assertEqual(result, expected_result)
+
+    async def test_conversation_analyze_grammar_structured_no_messages(self) -> None:
+        """Test analyze_grammar_structured with conversation that has no messages."""
+        await self.asetUp()
+
+        # Create conversation with no messages
+        empty_conversation = await Conversation.objects.acreate(
+            user=self.user, language='en', analysis_language='en'
+        )
+
+        # Call analyze_grammar_structured
+        result = await empty_conversation.analyze_grammar_structured()
+
+        # Should return early with no messages status
+        self.assertEqual(result["status"], "no_messages")
+        self.assertEqual(result["message"], "No user messages found")
+
+
+class EndConversationViewTest(TransactionTestCase):
+    """Test end_conversation view functionality."""
+
+    async def asetUp(self) -> None:
+        """Set up test data with async operations."""
+        self.user = await User.objects.acreate(
+            username='testuser', email='test@example.com', password='testpass123'
+        )
+        self.conversation = await Conversation.objects.acreate(
+            user=self.user, language='en', analysis_language='en'
+        )
+        # Create a test message
+        await ChatMessage.objects.acreate(
+            conversation=self.conversation,
+            message="Test message",
+            response="Test response",
+        )
+        self.client = AsyncClient()
+
+    @patch('chat.ai_service.ai_service')
+    async def test_end_conversation_success(self, mock_ai_service: MagicMock) -> None:
+        """Test successful conversation ending."""
+        await self.asetUp()
+
+        mock_ai_service.analyze_grammar_structured = AsyncMock(
+            return_value={"status": "success"}
+        )
+
+        # Force login the user
+        self.client.force_login(self.user)
+
+        # Make POST request to end conversation
+        response = await self.client.post(
+            reverse('end_conversation', args=[self.conversation.id])
+        )
+
+        # Should redirect to analysis page
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response.url, reverse('conversation_analysis', args=[self.conversation.id])
+        )
+
+        # Verify analyze_grammar_structured was called
+        mock_ai_service.analyze_grammar_structured.assert_called_once()
+
+    async def test_end_conversation_wrong_user(self) -> None:
+        """Test that users can't end other users' conversations."""
+        await self.asetUp()
+
+        # Create another user
+        other_user = await User.objects.acreate(
+            username='otheruser', email='other@example.com', password='testpass123'
+        )
+
+        self.client.force_login(other_user)
+
+        # Try to end conversation belonging to different user
+        response = await self.client.post(
+            reverse('end_conversation', args=[self.conversation.id])
+        )
+
+        # Should return 404
+        self.assertEqual(response.status_code, 404)
+
+    async def test_end_conversation_unauthenticated(self) -> None:
+        """Test that unauthenticated users can't end conversations."""
+        await self.asetUp()
+
+        # Make request without authentication
+        response = await self.client.post(
+            reverse('end_conversation', args=[self.conversation.id])
+        )
+
+        # Should redirect to login
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/login/', response.url)
+
+    async def test_end_conversation_nonexistent(self) -> None:
+        """Test ending a nonexistent conversation."""
+        await self.asetUp()
+
+        self.client.force_login(self.user)
+
+        # Try to end conversation that doesn't exist
+        response = await self.client.post(reverse('end_conversation', args=[99999]))
+
+        # Should return 404
+        self.assertEqual(response.status_code, 404)

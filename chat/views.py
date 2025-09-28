@@ -17,6 +17,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_protect
 from django_ratelimit.decorators import ratelimit
+from django.views.decorators.http import require_http_methods
 
 from .models import ChatMessage, Conversation, AfterActionReport
 from .ai_service import ai_service
@@ -428,6 +429,31 @@ async def conversation_analysis(
             "report": report,
         },
     )
+
+
+@require_http_methods(['POST'])  # type: ignore
+@login_required  # type: ignore
+async def end_conversation(
+    request: HttpRequest,
+    conversation_id: int,
+) -> HttpResponse:
+    """
+    End a conversation and run structured grammar analysis.
+
+    This endpoint:
+    1. Runs structured grammar analysis on all messages in the conversation
+    2. Redirects to the conversation analysis page to show the after-action report
+    """
+    # Fetch conversation and ensure it belongs to the user
+    conversation: Conversation = await aget_object_or_404(
+        Conversation, pk=conversation_id, user=request.user
+    )
+
+    # Run structured grammar analysis on the conversation
+    await conversation.end()
+
+    # Redirect to the analysis page which will create the AfterActionReport
+    return redirect(reverse("conversation_analysis", args=[conversation.id]))
 
 
 # ---------------------------------------------------------------------------

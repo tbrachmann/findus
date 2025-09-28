@@ -98,6 +98,18 @@ class Conversation(models.Model):
             analysis_language_code=self.analysis_language,
         )
 
+    async def end(self):
+        """
+        End the conversation by running structured grammar analysis.
+
+        This method should be called when a user ends a conversation
+        to analyze all messages and update proficiency tracking.
+
+        Returns:
+            dict: Summary of the analysis results from analyze_grammar_structured
+        """
+        return await self.analyze_grammar_structured()
+
 
 class ChatMessage(models.Model):
     """
