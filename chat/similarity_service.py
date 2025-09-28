@@ -315,14 +315,25 @@ class ConceptSimilarityService:
         clusters = {}
         processed_ids = set()
 
-        for concept in concepts:
+        # Convert QuerySet to list to avoid slicing issues
+        concepts_list = list(concepts)
+        concept_ids = {c.id for c in concepts_list}
+
+        for concept in concepts_list:
             if concept.id in processed_ids or not concept.embedding:
                 continue
 
-            # Find similar concepts
-            similar_concepts = concept.find_similar_concepts(
+            # Find similar concepts and filter to only include ones from our input set
+            similar_concepts_qs = concept.find_similar_concepts(
                 limit=10, threshold=similarity_threshold
-            ).filter(id__in=[c.id for c in concepts])
+            )
+
+            # Filter to only concepts in our input set
+            similar_concepts = [
+                c
+                for c in similar_concepts_qs
+                if c.id in concept_ids and c.id not in processed_ids
+            ]
 
             cluster_concepts = [concept]
             cluster_concepts.extend(similar_concepts)

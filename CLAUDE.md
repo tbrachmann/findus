@@ -36,7 +36,8 @@ except SomethingException as e: # handling for known error where we have to take
 
 # Testing
 
-please make sure all new features are covered by tests, and make sure that all tests are passing before committing. run all tests with `uv run ./manage.py test` before committing to make sure you haven't broken previous functionality.
+* please make sure all new features are covered by tests, and make sure that all tests are passing before committing. run all tests with `uv run ./manage.py test` before committing to make sure you haven't broken previous functionality.
+* if the test is failing - do not skip it. make sure it passes
 
 # Async-Native Platform
 

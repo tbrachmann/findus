@@ -338,25 +338,45 @@ class SimilarityServiceTest(TestCase):
             embedding=[0.12] * 768,  # Similar to self.concept
         )
 
+        GrammarConcept.objects.create(
+            name="Different Concept",
+            description="A completely different concept",
+            language='en',
+            cefr_level='B1',
+            complexity_score=3.0,
+            embedding=[0.8] * 768,  # Very different from self.concept
+        )
+
         # Test basic clustering functionality
         concepts = GrammarConcept.objects.filter(language='en')
 
-        # For now, just test that the method can be called without error
-        # The actual clustering logic has some QuerySet slicing issues that need to be resolved
-        try:
-            clusters = similarity_service.cluster_concepts_by_similarity(
-                concepts, min_cluster_size=1, similarity_threshold=0.5
-            )
-            # Should return dict of clusters
-            self.assertIsInstance(clusters, dict)
-        except TypeError as e:
-            if "Cannot filter a query once a slice has been taken" in str(e):
-                # Known issue with QuerySet slicing - skip this test for now
-                self.skipTest(
-                    "QuerySet slicing issue in cluster_concepts_by_similarity - needs refactoring"
-                )
-            else:
-                raise
+        # Test clustering with fixed QuerySet slicing issue
+        clusters = similarity_service.cluster_concepts_by_similarity(
+            concepts, min_cluster_size=1, similarity_threshold=0.5
+        )
+
+        # Should return dict of clusters
+        self.assertIsInstance(clusters, dict)
+
+        # Should have at least one cluster (might have more depending on similarity)
+        self.assertGreaterEqual(len(clusters), 1)
+
+        # Each cluster should contain GrammarConcept objects
+        for cluster_concepts in clusters.values():
+            self.assertIsInstance(cluster_concepts, list)
+            for concept in cluster_concepts:
+                self.assertIsInstance(concept, GrammarConcept)
+
+        # Test with minimum cluster size of 2
+        clusters_size_2 = similarity_service.cluster_concepts_by_similarity(
+            concepts,
+            min_cluster_size=2,
+            similarity_threshold=0.3,  # Lower threshold to find more similarities
+        )
+
+        # All clusters should have at least 2 concepts
+        for cluster_concepts in clusters_size_2.values():
+            self.assertGreaterEqual(len(cluster_concepts), 2)
 
 
 class MessageProcessingTest(TestCase):
