@@ -177,21 +177,28 @@ class StructuredGrammarAnalysis(BaseModel):
                 language_profile.grammar_accuracy * 0.6
                 + language_profile.fluency_score * 0.4
             )
+        else:
+            # For new profiles, set initial values (defaults were already set in aget_or_create)
+            # Just need to calculate proficiency score
+            language_profile.proficiency_score = (
+                language_profile.grammar_accuracy * 0.6
+                + language_profile.fluency_score * 0.4
+            )
 
-            # Update weak/strong areas
-            language_profile.weak_areas = list(
-                set(language_profile.weak_areas + self.weaknesses)
-            )[
-                :10
-            ]  # Keep only top 10
+        # Update weak/strong areas for both new and existing profiles
+        language_profile.weak_areas = list(
+            set(language_profile.weak_areas + self.weaknesses)
+        )[
+            :10
+        ]  # Keep only top 10
 
-            language_profile.strong_areas = list(
-                set(language_profile.strong_areas + self.strengths)
-            )[
-                :10
-            ]  # Keep only top 10
+        language_profile.strong_areas = list(
+            set(language_profile.strong_areas + self.strengths)
+        )[
+            :10
+        ]  # Keep only top 10
 
-            await language_profile.asave()
+        await language_profile.asave()
 
         # Update concept masteries
         for concept_usage in self.concepts_used:

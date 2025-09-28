@@ -509,7 +509,7 @@ class GrammarConcept(models.Model):
     """
 
     name = models.CharField(
-        max_length=200, help_text="Human-readable name of the grammar concept"
+        max_length=500, help_text="Human-readable name of the grammar concept"
     )
     description = models.TextField(
         help_text="Detailed description of the grammar concept"
@@ -872,9 +872,7 @@ class ErrorPattern(models.Model):
         related_name="error_patterns",
         help_text="User who made these errors",
     )
-    error_type = models.CharField(
-        max_length=20, choices=ERROR_CATEGORIES, help_text="Category of error"
-    )
+    error_type = models.CharField(max_length=100, help_text="Category of error")
     error_description = models.TextField(
         help_text="Description of the specific error pattern"
     )
