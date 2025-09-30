@@ -63,7 +63,7 @@ jobs:
 
     - name: Run unit tests
       run: |
-        uv run python manage.py test --settings=findus.test_settings
+        uv run python manage.py test --settings=findus.test_settings --keepdb
 
     - name: Start Django server (background)
       run: |
